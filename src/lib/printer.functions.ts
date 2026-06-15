@@ -137,8 +137,9 @@ export const testPrinter = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input) => testInput.parse(input))
   .handler(async ({ context }) => {
-    const { supabase } = context;
-    const { data: settings } = await supabase.from("settings").select("*").limit(1).maybeSingle();
+    const { supabase: _ } = context;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: settings } = await supabaseAdmin.from("settings").select("*").limit(1).maybeSingle();
     if (!settings?.printer_ip) throw new Error("Configura la IP de la impresora primero.");
 
     const buffer = await buildTicketBuffer({
