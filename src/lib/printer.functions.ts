@@ -96,8 +96,9 @@ export const printSaleTicket = createServerFn({ method: "POST" })
   .inputValidator((input) => printInput.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const [{ data: settings }, { data: sale }] = await Promise.all([
-      supabase.from("settings").select("*").limit(1).maybeSingle(),
+      supabaseAdmin.from("settings").select("*").limit(1).maybeSingle(),
       supabase.from("sales").select("*, sale_items(*, sale_item_modifiers(*))").eq("id", data.saleId).single(),
     ]);
     if (!settings) throw new Error("Configuración no encontrada.");
