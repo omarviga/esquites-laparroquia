@@ -35,9 +35,17 @@ async function buildTicketBuffer(opts: {
 }): Promise<Uint8Array> {
   const EscPosEncoder = (await import("esc-pos-encoder")).default;
   const encoder = new EscPosEncoder();
-  const width = opts.settings.printer_width === 58 ? 32 : 48;
+  const widthMm = opts.settings.printer_width === 58 ? 58 : 80;
+  const width = widthMm === 58 ? 32 : 48;
   const date = new Date(opts.createdAt);
   const dateStr = date.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "medium" });
+
+  // Logo raster, centered & sized to printer width
+  const logoRaster = Array.from(getLogoRaster(widthMm));
+
+  let e = encoder.initialize().align("center").raw(logoRaster).newline()
+    .codepage("cp437")
+    .bold(true).size(1, 1).line(opts.settings.business_name ?? "Esquites La Parroquia").bold(false).size(0, 0);
 
   let e = encoder.initialize().codepage("cp437").align("center")
     .bold(true).size(1, 1).line(opts.settings.business_name ?? "Esquites La Parroquia").bold(false).size(0, 0);
