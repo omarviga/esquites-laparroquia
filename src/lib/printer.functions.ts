@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { getLogoRaster } from "./printer-logo";
 
 const printInput = z.object({ saleId: z.string().uuid() });
 const testInput = z.object({});
