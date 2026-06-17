@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+<<<<<<< HEAD
 import { useMemo, useState, useEffect } from "react";
 import { Search, Trash2, Plus, Minus, X, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -7,6 +8,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getCatalog } from "@/lib/catalog.functions";
 import type { Product, Category } from "@/lib/catalog-types";
+=======
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { Search, Trash2, Plus, Minus, X, Loader2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { listCategories, listProducts } from "@/lib/products.functions";
+import { inferModifiers, type Product } from "@/lib/catalog-types";
+>>>>>>> cb9696df48d7aa87774d2acfa991ca2202ecc86c
 import { useCart, calcTotals, fmt } from "@/store/cart";
 import { useSales, nextFolio, type PaymentMethod } from "@/store/sales";
 import { ProductModifierDialog } from "@/components/ProductModifierDialog";
@@ -23,11 +34,22 @@ export const Route = createFileRoute("/_authenticated/pos")({
 });
 
 function POSPage() {
+<<<<<<< HEAD
   const getCat = useServerFn(getCatalog);
   const { data: categories = [], isLoading } = useQuery({
     queryKey: ["catalog"],
     queryFn: () => getCat(),
   });
+=======
+  const getCats = useServerFn(listCategories);
+  const getProds = useServerFn(listProducts);
+
+  const catsQ = useQuery({ queryKey: ["pos-cats"], queryFn: () => getCats() });
+  const prodsQ = useQuery({ queryKey: ["pos-prods"], queryFn: () => getProds() });
+
+  const categories = catsQ.data ?? [];
+  const allProducts = (prodsQ.data ?? []) as any[];
+>>>>>>> cb9696df48d7aa87774d2acfa991ca2202ecc86c
 
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -40,6 +62,7 @@ function POSPage() {
   const addSale = useSales((s) => s.addSale);
   const totals = calcTotals(cart.items, cart.discount, cart.taxRate);
 
+<<<<<<< HEAD
   const { data: customers = [] } = useQuery({
     queryKey: ["customers"],
     queryFn: () => crmApi.getCustomers()
@@ -62,6 +85,26 @@ function POSPage() {
       setCategoryId(categories[0].id);
     }
   }, [categories, categoryId, query]);
+=======
+  const products: Product[] = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const effectiveCat = categoryId ?? categories[0]?.id ?? null;
+    return allProducts
+      .filter((p) => p.active !== false)
+      .filter((p) => (q ? p.name.toLowerCase().includes(q) : effectiveCat ? p.category_id === effectiveCat : true))
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        price: Number(p.price),
+        category_id: p.category_id,
+        description: p.description,
+        includes: p.includes,
+        emoji: p.emoji ?? "🌽",
+        image_url: p.image_url,
+        modifiers: inferModifiers({ name: p.name, category_name: p.categories?.name }),
+      }));
+  }, [allProducts, categoryId, query, categories]);
+>>>>>>> cb9696df48d7aa87774d2acfa991ca2202ecc86c
 
   const onProductClick = (p: Product) => {
     if (p.modifierGroups && p.modifierGroups.length) setModProduct(p);
@@ -146,9 +189,14 @@ function POSPage() {
     }
   };
 
+  if (catsQ.isLoading || prodsQ.isLoading) {
+    return <div className="flex items-center justify-center h-screen text-muted-foreground"><Loader2 className="size-6 animate-spin" /></div>;
+  }
+
+  const activeCat = categoryId ?? categories[0]?.id ?? null;
+
   return (
     <div className="flex h-screen w-full">
-      {/* LEFT */}
       <section className="flex-1 flex flex-col p-4 lg:p-6 min-w-0">
         <header className="flex items-center gap-3 mb-4">
           <div className="relative flex-1">
@@ -163,18 +211,33 @@ function POSPage() {
         </header>
 
         <div className="flex gap-2 mb-4 overflow-x-auto pb-1 scrollbar-thin">
+<<<<<<< HEAD
           {categories.map((c) => {
             const active = c.id === categoryId && !query;
+=======
+          {categories.map((c: any) => {
+            const active = c.id === activeCat && !query;
+>>>>>>> cb9696df48d7aa87774d2acfa991ca2202ecc86c
             return (
               <button
                 key={c.id}
                 onClick={() => { setQuery(""); setCategoryId(c.id); }}
+<<<<<<< HEAD
                 className={`px-4 py-2.5 rounded-xl whitespace-nowrap text-sm font-semibold transition ${active
                   ? "bg-linear-to-r from-gold to-gold-soft text-primary-foreground shadow-(--shadow-gold)"
                   : "bg-surface text-muted-foreground hover:text-foreground gold-border"
                   }`}
               >
                 {c.name}
+=======
+                className={`px-4 py-2.5 rounded-xl whitespace-nowrap text-sm font-semibold transition ${
+                  active
+                    ? "bg-gradient-to-r from-gold to-gold-soft text-primary-foreground shadow-[var(--shadow-gold)]"
+                    : "bg-surface text-muted-foreground hover:text-foreground gold-border"
+                }`}
+              >
+                <span className="mr-1.5">{c.icon ?? "🌽"}</span>{c.name}
+>>>>>>> cb9696df48d7aa87774d2acfa991ca2202ecc86c
               </button>
             );
           })}
@@ -205,7 +268,6 @@ function POSPage() {
         </div>
       </section>
 
-      {/* RIGHT - CART */}
       <aside className="w-[380px] lg:w-[420px] shrink-0 bg-surface border-l border-border flex flex-col">
         <div className="p-5 border-b border-border">
           <h2 className="font-display text-xl">Carrito de venta</h2>

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { getLogoRaster } from "./printer-logo";
 
 const printInput = z.object({ saleId: z.string().uuid() });
 const printCashCutInput = z.object({ registerId: z.string().uuid() });
@@ -38,10 +39,12 @@ async function buildTicketBuffer(opts: {
 }): Promise<Uint8Array> {
   const EscPosEncoder = (await import("esc-pos-encoder")).default;
   const encoder = new EscPosEncoder();
-  const width = opts.settings.printer_width === 58 ? 32 : 48;
+  const widthMm = opts.settings.printer_width === 58 ? 58 : 80;
+  const width = widthMm === 58 ? 32 : 48;
   const date = new Date(opts.createdAt);
   const dateStr = date.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "medium" });
 
+<<<<<<< HEAD
   let e = encoder.initialize().codepage("cp437").align("center");
 
   if (opts.settings.show_logo && opts.settings.logo_data) {
@@ -56,6 +59,14 @@ async function buildTicketBuffer(opts: {
     e = e.bold(true).size(2, 1).line(opts.settings.business_name ?? "Esquites La Parroquia").bold(false).size(1, 1);
   }
 
+=======
+  // Logo raster, centered & sized to printer width
+  const logoRaster = Array.from(getLogoRaster(widthMm));
+
+  let e = encoder.initialize().align("center").raw(logoRaster).newline()
+    .codepage("cp437")
+    .bold(true).size(1, 1).line(opts.settings.business_name ?? "Esquites La Parroquia").bold(false).size(0, 0);
+>>>>>>> cb9696df48d7aa87774d2acfa991ca2202ecc86c
   if (opts.settings.slogan) e = e.line(opts.settings.slogan);
   if (opts.settings.address) e = e.line(opts.settings.address);
   if (opts.settings.phone) e = e.line("Tel: " + opts.settings.phone);
@@ -183,6 +194,7 @@ async function sendToPrinter(ip: string, port: number, data: Uint8Array): Promis
 
   // Try Cloudflare Sockets (Nitro/Cloudflare)
   try {
+<<<<<<< HEAD
     // @ts-ignore - Only available in Cloudflare Workers
     const moduleName = "cloudflare:sockets";
     const { connect } = (await import(/* @vite-ignore */ moduleName)) as any;
@@ -203,6 +215,13 @@ async function sendToPrinter(ip: string, port: number, data: Uint8Array): Promis
     }
   } catch (e) {
     // Falls through to Node.js check
+=======
+    // Obscure the specifier so Vite/Rollup doesn't try to resolve it at build time.
+    const mod = "cloudflare" + ":" + "sockets";
+    ({ connect } = await (Function("s", "return import(s)")(mod) as Promise<any>));
+  } catch {
+    throw new Error("La impresión por red no está disponible en este entorno. Usa la impresión por navegador.");
+>>>>>>> cb9696df48d7aa87774d2acfa991ca2202ecc86c
   }
 
   // Try Node.js Net (Local Dev / VPS)
@@ -239,8 +258,9 @@ export const printSaleTicket = createServerFn({ method: "POST" })
   .validator((input: any) => printInput.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const [{ data: settings }, { data: sale }] = await Promise.all([
-      supabase.from("settings").select("*").limit(1).maybeSingle(),
+      supabaseAdmin.from("settings").select("*").limit(1).maybeSingle(),
       supabase.from("sales").select("*, sale_items(*, sale_item_modifiers(*))").eq("id", data.saleId).single(),
     ]);
     if (!settings) throw new Error("Configuración no encontrada.");
@@ -248,7 +268,9 @@ export const printSaleTicket = createServerFn({ method: "POST" })
     if (!settings.printer_ip) throw new Error("Falta la IP de la impresora.");
     if (!sale) throw new Error("Venta no encontrada.");
 
-    const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", sale.user_id).maybeSingle();
+    const { data: profile } = sale.user_id
+      ? await supabase.from("profiles").select("full_name").eq("id", sale.user_id).maybeSingle()
+      : { data: null as { full_name: string | null } | null };
 
     const buffer = await buildTicketBuffer({
       settings,
@@ -277,8 +299,9 @@ export const testPrinter = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .validator((input: any) => testInput.parse(input || {}))
   .handler(async ({ context }) => {
-    const { supabase } = context;
-    const { data: settings } = await supabase.from("settings").select("*").limit(1).maybeSingle();
+    const { supabase: _ } = context;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: settings } = await supabaseAdmin.from("settings").select("*").limit(1).maybeSingle();
     if (!settings?.printer_ip) throw new Error("Configura la IP de la impresora primero.");
 
     const buffer = await buildTicketBuffer({

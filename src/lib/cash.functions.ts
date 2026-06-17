@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
+<<<<<<< HEAD
 const openInput = z.object({
   openingAmount: z.number().min(0).max(1_000_000),
   breakdown: z.record(z.number()).optional(),
@@ -11,6 +12,11 @@ const closeInput = z.object({
   notes: z.string().max(500).optional(),
   breakdown: z.record(z.number()).optional(),
 });
+=======
+const breakdownSchema = z.array(z.object({ value: z.number(), label: z.string(), count: z.number(), subtotal: z.number() })).optional();
+const openInput = z.object({ openingAmount: z.number().min(0).max(1_000_000), breakdown: breakdownSchema });
+const closeInput = z.object({ realAmount: z.number().min(0).max(1_000_000), notes: z.string().max(500).optional(), breakdown: breakdownSchema });
+>>>>>>> cb9696df48d7aa87774d2acfa991ca2202ecc86c
 const moveInput = z.object({
   type: z.enum(["entrada", "salida"]),
   amount: z.number().positive().max(1_000_000),
@@ -32,12 +38,16 @@ export const openCashRegister = createServerFn({ method: "POST" })
     if (existing) throw new Error("Ya tienes una caja abierta.");
     const { data: row, error } = await supabase
       .from("cash_register")
+<<<<<<< HEAD
       .insert({
         user_id: userId,
         opening_amount: data.openingAmount,
         opening_breakdown: data.breakdown,
         status: "abierta"
       })
+=======
+      .insert({ user_id: userId, opening_amount: data.openingAmount, status: "abierta", opening_breakdown: data.breakdown ?? null })
+>>>>>>> cb9696df48d7aa87774d2acfa991ca2202ecc86c
       .select()
       .single();
     if (error) throw new Error(error.message);
@@ -71,6 +81,7 @@ export const closeCashRegister = createServerFn({ method: "POST" })
         expected_amount: expected,
         difference: diff,
         notes: data.notes ?? null,
+        closing_breakdown: data.breakdown ?? null,
         total_sales_cash: s?.sales_cash ?? 0,
         total_sales_card: s?.sales_card ?? 0,
         total_sales_transfer: s?.sales_transfer ?? 0,

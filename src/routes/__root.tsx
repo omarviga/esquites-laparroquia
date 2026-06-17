@@ -3,10 +3,14 @@ import { Outlet, createRootRouteWithContext, HeadContent, Scripts } from "@tanst
 import type { ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { Sidebar } from "@/components/Sidebar";
+<<<<<<< HEAD
 import { ThemeProvider } from "@/components/theme-provider";
 import { OfflineSync } from "@/components/OfflineSync";
 import { Toaster } from "sonner";
 import { Button } from "@/components/ui/button";
+=======
+import { ThemeProvider } from "@/components/ThemeProvider";
+>>>>>>> cb9696df48d7aa87774d2acfa991ca2202ecc86c
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
@@ -74,8 +78,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
+<<<<<<< HEAD
     <html lang="es">
       <head><HeadContent /></head>
+=======
+    <html lang="es" className="dark">
+      <head>
+        <HeadContent />
+        <script dangerouslySetInnerHTML={{ __html: `try{var t=localStorage.getItem('theme');var c=document.documentElement.classList;if(t==='light')c.remove('dark');else c.add('dark');}catch(e){}` }} />
+      </head>
+>>>>>>> cb9696df48d7aa87774d2acfa991ca2202ecc86c
       <body>{children}<Scripts /></body>
     </html>
   );
@@ -84,6 +96,7 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   return (
+<<<<<<< HEAD
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
         <div className="flex min-h-screen w-full bg-background text-foreground">
@@ -96,5 +109,15 @@ function RootComponent() {
         </div>
       </QueryClientProvider>
     </ThemeProvider>
+=======
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <div className="flex min-h-screen w-full">
+          <Sidebar />
+          <main className="flex-1 min-w-0"><Outlet /></main>
+        </div>
+      </ThemeProvider>
+    </QueryClientProvider>
+>>>>>>> cb9696df48d7aa87774d2acfa991ca2202ecc86c
   );
 }
