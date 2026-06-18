@@ -18,7 +18,7 @@ const saveSaleInput = z.object({
     quantity: z.number(),
     unitPrice: z.number(),
     modifiers: z.array(z.object({
-      modifierId: z.string().uuid(),
+      modifierId: z.string().uuid().optional().nullable(),
       modifierName: z.string(),
       extraPrice: z.number()
     }))
@@ -27,7 +27,7 @@ const saveSaleInput = z.object({
 
 export const saveSale = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: any) => saveSaleInput.parse(input))
+  .inputValidator((input: any) => saveSaleInput.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
@@ -134,7 +134,7 @@ export const saveSale = createServerFn({ method: "POST" })
       if (itemError) throw new Error(itemError.message);
 
       if (item.modifiers.length > 0) {
-        const mods = item.modifiers.map(m => ({
+        const mods = item.modifiers.map((m: any) => ({
           sale_item_id: saleItem.id,
           modifier_id: m.modifierId,
           modifier_name: m.modifierName,
@@ -156,7 +156,7 @@ export const saveSale = createServerFn({ method: "POST" })
 
 export const updateKdsStatus = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: any) => z.object({ saleId: z.string().uuid(), status: z.string() }).parse(input))
+  .inputValidator((input: any) => z.object({ saleId: z.string().uuid(), status: z.string() }).parse(input))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const { error } = await (supabase as any)

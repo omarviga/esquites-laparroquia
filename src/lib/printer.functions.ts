@@ -226,7 +226,7 @@ async function sendToPrinter(ip: string, port: number, data: Uint8Array): Promis
 
 export const printSaleTicket = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: any) => printInput.parse(input))
+  .inputValidator((input: any) => printInput.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -268,7 +268,7 @@ export const printSaleTicket = createServerFn({ method: "POST" })
 
 export const testPrinter = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: any) => testInput.parse(input || {}))
+  .inputValidator((input: any) => testInput.parse(input || {}))
   .handler(async ({ context }) => {
     const { supabase: _ } = context;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -289,7 +289,7 @@ export const testPrinter = createServerFn({ method: "POST" })
 
 export const printCashCutReceipt = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: any) => printCashCutInput.parse(input))
+  .inputValidator((input: any) => printCashCutInput.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const [{ data: settings }, { data: register }] = await Promise.all([
