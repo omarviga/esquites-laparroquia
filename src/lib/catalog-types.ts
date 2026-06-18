@@ -39,7 +39,7 @@ const FRITURAS: ModifierGroup = {
   name: "Seleccione una fritura",
   minSelections: 1,
   maxSelections: 1,
-  options: ["Tostitos", "Takis", "Cheetos", "Doritos", "Ruffles", "Churros"].map((l) => ({
+  modifiers: ["Tostitos", "Takis", "Cheetos", "Doritos", "Ruffles", "Churros"].map((l) => ({
     id: l.toLowerCase(),
     name: l,
     price: 0,

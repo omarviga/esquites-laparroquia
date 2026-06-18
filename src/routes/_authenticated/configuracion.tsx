@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import type { ChangeEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Save, Printer, Building2, Loader2, TestTube2, Image as ImageIcon, X } from "lucide-react";
 import { toast } from "sonner";
@@ -131,7 +132,7 @@ function ConfigPage() {
     }
   };
 
-  const onLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onLogoUpload = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
