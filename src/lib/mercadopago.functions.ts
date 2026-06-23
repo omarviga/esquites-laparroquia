@@ -58,7 +58,7 @@ export type PointIntentInput = z.infer<typeof pointIntentSchema>;
 
 export const createPointPaymentIntent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator(pointIntentSchema)
+  .inputValidator(pointIntentSchema)
   .handler(async ({ data }) => {
     const cfg = getServerConfig();
     const token = cfg.mercadopagoAccessToken;
@@ -99,7 +99,7 @@ const checkPointSchema = z.object({
 
 export const checkPointPaymentStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .validator(checkPointSchema)
+  .inputValidator(checkPointSchema)
   .handler(async ({ data }) => {
     const cfg = getServerConfig();
     const token = cfg.mercadopagoAccessToken;
@@ -133,7 +133,7 @@ const cancelPointSchema = z.object({
 
 export const cancelPointPaymentIntent = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator(cancelPointSchema)
+  .inputValidator(cancelPointSchema)
   .handler(async ({ data }) => {
     const cfg = getServerConfig();
     const token = cfg.mercadopagoAccessToken;
@@ -163,7 +163,7 @@ export type CreatePreferenceInput = z.infer<typeof createPreferenceSchema>;
 
 export const createPaymentPreference = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator(createPreferenceSchema)
+  .inputValidator(createPreferenceSchema)
   .handler(async ({ data }) => {
     const cfg = getServerConfig();
     const token = cfg.mercadopagoAccessToken;
@@ -236,7 +236,7 @@ export type CheckPaymentResult = {
 
 export const checkPaymentStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .validator(checkPaymentSchema)
+  .inputValidator(checkPaymentSchema)
   .handler(async ({ data }) => {
     const cfg = getServerConfig();
     const token = cfg.mercadopagoAccessToken;
@@ -293,7 +293,7 @@ const zettlePaymentSchema = z.object({
 
 export const createZettlePayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator(zettlePaymentSchema)
+  .inputValidator(zettlePaymentSchema)
   .handler(async ({ data }) => {
     const cfg = getServerConfig();
     const token = cfg.zettleApiKey;
@@ -338,7 +338,7 @@ const checkZettleSchema = z.object({
 
 export const checkZettlePaymentStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .validator(checkZettleSchema)
+  .inputValidator(checkZettleSchema)
   .handler(async ({ data }) => {
     const cfg = getServerConfig();
     const token = cfg.zettleApiKey;
@@ -378,7 +378,7 @@ const terminalPaymentSchema = z.object({
 
 export const createTerminalPayment = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator(terminalPaymentSchema)
+  .inputValidator(terminalPaymentSchema)
   .handler(async ({ data }) => {
     const cfg = getServerConfig();
 
@@ -456,7 +456,7 @@ const checkTerminalSchema = z.object({
 
 export const checkTerminalPaymentStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .validator(checkTerminalSchema)
+  .inputValidator(checkTerminalSchema)
   .handler(async ({ data }) => {
     const cfg = getServerConfig();
 
@@ -524,7 +524,7 @@ export type WebhookPayload = z.infer<typeof webhookSchema>;
 
 export const handleMercadoPagoWebhook = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator(webhookSchema)
+  .inputValidator(webhookSchema)
   .handler(async ({ data, context }) => {
     const cfg = getServerConfig();
     if (data.type !== "payment") {

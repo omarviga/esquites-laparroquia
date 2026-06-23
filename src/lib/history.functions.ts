@@ -86,7 +86,7 @@ export type SalesSummary = {
 
 export const getSalesHistory = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .validator((input: any) => historyInput.parse(input || {}))
+  .inputValidator((input: any) => historyInput.parse(input || {}))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const { page, pageSize, dateFrom, dateTo, paymentMethod, status, search, sortBy, sortOrder } =
@@ -166,7 +166,7 @@ export const getSalesHistory = createServerFn({ method: "GET" })
 
 export const getSaleDetail = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .validator((input: any) => detailInput.parse(input))
+  .inputValidator((input: any) => detailInput.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
 
@@ -215,7 +215,7 @@ export const getSaleDetail = createServerFn({ method: "GET" })
 
 export const getSalesSummary = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
-  .validator((input: any) => summaryInput.parse(input || {}))
+  .inputValidator((input: any) => summaryInput.parse(input || {}))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const { dateFrom, dateTo } = data;
@@ -273,7 +273,7 @@ export const getSalesSummary = createServerFn({ method: "GET" })
 
 export const cancelSaleFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .validator((input: any) => cancelInput.parse(input))
+  .inputValidator((input: any) => cancelInput.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
