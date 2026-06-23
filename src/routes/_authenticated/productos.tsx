@@ -19,7 +19,6 @@ import {
 } from "@/lib/products.functions";
 
 export const Route = createFileRoute("/_authenticated/productos")({
-  ssr: false,
   component: ProductsPage,
 });
 
@@ -48,6 +47,7 @@ const emptyProduct = {
 };
 
 function ProductsPage() {
+  const [mounted, setMounted] = useState(false);
   const fnListProducts = useServerFn(listProducts);
   const fnListCategories = useServerFn(listCategories);
   const fnUpsertProduct = useServerFn(upsertProduct);
@@ -80,6 +80,7 @@ function ProductsPage() {
   };
 
   useEffect(() => { load(); }, []);
+  useEffect(() => { setMounted(true); }, []);
 
   const filtered = products.filter((p) => {
     if (filterCat !== "all" && p.category_id !== filterCat) return false;
