@@ -13,7 +13,7 @@ import { CheckoutDialog } from "@/components/CheckoutDialog";
 import { PaymentQRDialog } from "@/components/PaymentQRDialog";
 import { PaymentTerminalDialog } from "@/components/PaymentTerminalDialog";
 import { ReceiptDialog } from "@/components/ReceiptDialog";
-import { AIChat } from "@/components/AIChat";
+import { AIChat } from "@/components/AIChat.tsx";
 import { saveSale } from "@/lib/sales.functions";
 import { getSettings } from "@/lib/settings.functions";
 import { crmApi } from "@/lib/crm.functions";
