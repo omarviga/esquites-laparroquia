@@ -7,7 +7,6 @@
     "dev": "vinxi dev",
     "build": "vinxi build",
     "start": "node .output/server/index.mjs",
-    "vercel-build": "npm install tslib && npm run build"
     "preview": "vinxi preview",
     "lint": "eslint .",
     "format": "prettier --write ."
