@@ -1,16 +1,8 @@
 {
-  "buildCommand": "vite build",
+  "buildCommand": "npm run build",
   "outputDirectory": ".output/public",
   "framework": null,
-  "functions": {
-    "api/**": {
-      "runtime": "nodejs20.x"
-    }
-  },
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/api/server"
-    }
+    { "source": "/(.*)", "destination": "/$1" }
   ]
 }
