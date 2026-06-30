@@ -1,5 +1,4 @@
 
-import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { inventoryApi, type InventoryItem } from "@/lib/inventory.functions";
@@ -11,12 +10,8 @@ import { Box, Plus, Pencil, Trash2, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { fmt } from "@/store/cart";
 
-export const Route = createFileRoute("/_authenticated/inventario")({
-    head: () => ({ meta: [{ title: "Inventario · Esquites La Parroquia" }] }),
-    component: InventoryPage,
-});
-
-function InventoryPage() {
+// Route: C:\Users\oviey\esquites\src\routes\_authenticated\inventario.tsx — converted to SPA
+export default function InventoryPage() {
     const qc = useQueryClient();
     const { data: items, isLoading } = useQuery({
         queryKey: ["inventory-items"],

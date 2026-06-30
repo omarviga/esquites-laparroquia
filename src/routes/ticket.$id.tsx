@@ -1,11 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useServerFn } from "@tanstack/react-start";
-import { getSaleForTicket } from "@/lib/sales.functions";
+import { createClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
-import logoTicket from "@/assets/logo-ticket.png";
 import { Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import logoTicket from "@/assets/logo-ticket.png";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
@@ -34,7 +32,6 @@ function parseHashData(): TicketData | null {
   try {
     const raw = window.location.hash.slice(1);
     if (!raw) return null;
-    // decode base64 → bytes → UTF-8
     const binary = atob(raw);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
@@ -45,15 +42,67 @@ function parseHashData(): TicketData | null {
   }
 }
 
-export const Route = createFileRoute("/ticket/$id")({
-  head: () => ({ meta: [{ title: "Ticket · Esquites La Parroquia" }] }),
-  component: TicketPage,
-});
+function getSupabaseClient() {
+  const url = import.meta.env.VITE_SUPABASE_URL || "";
+  const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
+  return createClient(url, key, {
+    auth: {
+      storage: typeof window !== "undefined" ? localStorage : undefined,
+      persistSession: true,
+      autoRefreshToken: true,
+    },
+  });
+}
 
-function TicketPage() {
-  const { id } = Route.useParams();
+async function getTicketData(saleId: string): Promise<TicketData> {
+  const supabase = getSupabaseClient();
+  const { data: sale, error } = await supabase
+    .from("sales")
+    .select("*, sale_items(*, sale_item_modifiers(*))")
+    .eq("id", saleId)
+    .single();
+  if (error || !sale) throw new Error("Venta no encontrada.");
+
+  const { data: profile } = sale.user_id
+    ? await supabase.from("profiles").select("full_name").eq("id", sale.user_id).maybeSingle()
+    : { data: null as { full_name: string | null } | null };
+
+  const { data: settings } = await supabase
+    .from("settings")
+    .select("business_name, slogan, address, phone, footer_message")
+    .limit(1)
+    .maybeSingle();
+
+  return {
+    id: sale.id,
+    folio: sale.folio,
+    createdAt: sale.created_at,
+    cashier: profile?.full_name ?? "Cajero",
+    subtotal: Number(sale.subtotal),
+    tax: Number(sale.tax ?? 0),
+    total: Number(sale.total),
+    paymentMethod: sale.payment_method ?? "efectivo",
+    cashReceived: sale.cash_received != null ? Number(sale.cash_received) : null,
+    changeAmount: sale.change_amount != null ? Number(sale.change_amount) : null,
+    items: (sale.sale_items ?? []).map((i: any) => ({
+      name: i.product_name ?? "Producto",
+      quantity: i.quantity,
+      unitPrice: Number(i.unit_price),
+      modifiers: (i.sale_item_modifiers ?? []).map((m: any) => m.modifier_name).filter(Boolean),
+    })),
+    businessName: settings?.business_name ?? "Esquites La Parroquia",
+    slogan: settings?.slogan ?? "¡El sabor que nos une!",
+    address: settings?.address ?? "Acámbaro, Gto.",
+    phone: settings?.phone ?? "",
+    footerMessage: settings?.footer_message ?? "¡Gracias por su compra!",
+  };
+}
+
+export default function TicketPage() {
+  // Parse id from URL: /ticket/:id
+  const pathParts = window.location.pathname.split("/").filter(Boolean);
+  const id = pathParts[1] || "";
   const isPrintMode = id === "print";
-  const getSale = useServerFn(getSaleForTicket);
 
   const [ticket, setTicket] = useState<TicketData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -63,20 +112,19 @@ function TicketPage() {
       const data = parseHashData();
       if (data) {
         setTicket(data);
-        // Auto-print after render
         setTimeout(() => window.print(), 800);
       } else {
         setError("No se encontraron datos del ticket.");
       }
     } else {
-      getSale({ data: { saleId: id } })
+      getTicketData(id)
         .then((data) => {
-          setTicket(data as TicketData);
+          setTicket(data);
           setTimeout(() => window.print(), 800);
         })
         .catch((e: any) => setError(e.message));
     }
-  }, [id, isPrintMode, getSale]);
+  }, [id, isPrintMode]);
 
   if (error) {
     return (
@@ -109,7 +157,6 @@ function TicketPage() {
   return (
     <div className="min-h-screen bg-gray-100 flex items-start justify-center pt-1 print:bg-white print:p-0">
       <div className="ticket-wrapper">
-        {/* ─── Print Controls (hidden when printing) ─── */}
         <div className="no-print flex gap-2 mb-3 justify-center">
           <button
             onClick={() => window.print()}
@@ -125,15 +172,9 @@ function TicketPage() {
           </button>
         </div>
 
-        {/* ─── Ticket ─── */}
         <div className="ticket bg-white shadow-xl print:shadow-none">
-          {/* Header */}
           <div className="ticket-header">
-            <img
-              src={logoTicket}
-              alt={ticket.businessName}
-              className="ticket-logo"
-            />
+            <img src={logoTicket} alt={ticket.businessName} className="ticket-logo" />
             <h1 className="ticket-business">{ticket.businessName}</h1>
             {ticket.slogan && <p className="ticket-slogan">{ticket.slogan}</p>}
             <p className="ticket-address">{ticket.address}</p>
@@ -142,29 +183,23 @@ function TicketPage() {
 
           <div className="ticket-divider" />
 
-          {/* Info */}
           <div className="ticket-info">
             <div className="flex justify-between">
-              <span>Folio:</span>
-              <span className="font-bold">{ticket.folio}</span>
+              <span>Folio:</span><span className="font-bold">{ticket.folio}</span>
             </div>
             <div className="flex justify-between">
-              <span>Fecha:</span>
-              <span>{format(date, "dd/MM/yyyy", { locale: es })}</span>
+              <span>Fecha:</span><span>{format(date, "dd/MM/yyyy", { locale: es })}</span>
             </div>
             <div className="flex justify-between">
-              <span>Hora:</span>
-              <span>{format(date, "HH:mm:ss")}</span>
+              <span>Hora:</span><span>{format(date, "HH:mm:ss")}</span>
             </div>
             <div className="flex justify-between">
-              <span>Cajero:</span>
-              <span>{ticket.cashier}</span>
+              <span>Cajero:</span><span>{ticket.cashier}</span>
             </div>
           </div>
 
           <div className="ticket-divider" />
 
-          {/* Items */}
           <div className="ticket-items">
             {ticket.items.map((item, idx) => (
               <div key={idx} className="mb-2">
@@ -173,9 +208,7 @@ function TicketPage() {
                   <span>{fmt(item.unitPrice * item.quantity)}</span>
                 </div>
                 {item.modifiers.map((m, mi) => (
-                  <div key={mi} className="text-xs pl-3 text-gray-500">
-                    + {m}
-                  </div>
+                  <div key={mi} className="text-xs pl-3 text-gray-500">+ {m}</div>
                 ))}
               </div>
             ))}
@@ -183,47 +216,30 @@ function TicketPage() {
 
           <div className="ticket-divider" />
 
-          {/* Totals */}
           <div className="ticket-totals">
-            <div className="flex justify-between text-xs">
-              <span>Subtotal</span>
-              <span>{fmt(ticket.subtotal)}</span>
-            </div>
-            <div className="flex justify-between text-xs">
-              <span>Impuestos</span>
-              <span>{fmt(ticket.tax)}</span>
-            </div>
+            <div className="flex justify-between text-xs"><span>Subtotal</span><span>{fmt(ticket.subtotal)}</span></div>
+            <div className="flex justify-between text-xs"><span>Impuestos</span><span>{fmt(ticket.tax)}</span></div>
             <div className="flex justify-between font-bold text-base pt-1 mt-1 border-t border-dashed border-gray-300">
-              <span>TOTAL</span>
-              <span>{fmt(ticket.total)}</span>
+              <span>TOTAL</span><span>{fmt(ticket.total)}</span>
             </div>
             <div className="flex justify-between text-xs pt-1">
-              <span>Pago:</span>
-              <span className="uppercase font-medium">{ticket.paymentMethod}</span>
+              <span>Pago:</span><span className="uppercase font-medium">{ticket.paymentMethod}</span>
             </div>
             {ticket.cashReceived != null && (
               <>
-                <div className="flex justify-between text-xs">
-                  <span>Recibido</span>
-                  <span>{fmt(ticket.cashReceived)}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span>Cambio</span>
-                  <span>{fmt(ticket.changeAmount ?? 0)}</span>
-                </div>
+                <div className="flex justify-between text-xs"><span>Recibido</span><span>{fmt(ticket.cashReceived)}</span></div>
+                <div className="flex justify-between text-xs"><span>Cambio</span><span>{fmt(ticket.changeAmount ?? 0)}</span></div>
               </>
             )}
           </div>
 
           <div className="ticket-divider" />
 
-          {/* Footer */}
           <div className="ticket-footer">
             <p className="italic">{ticket.footerMessage}</p>
             <p className="opacity-60 mt-1">esquiteslaparroquia.mx</p>
           </div>
 
-          {/* Feed extra para el cortador */}
           <div className="ticket-feed" />
         </div>
       </div>

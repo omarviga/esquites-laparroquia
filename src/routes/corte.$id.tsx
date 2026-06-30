@@ -1,4 +1,3 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
@@ -9,11 +8,7 @@ import logoTicket from "@/assets/logo-ticket.png";
 const fmt = (n: number) =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
 
-export const Route = createFileRoute("/corte/$id")({
-  head: () => ({ meta: [{ title: "Corte de Caja · Esquites La Parroquia" }] }),
-  component: CortePage,
-});
-
+// Route: C:\Users\oviey\esquites\src\routes\corte.$id.tsx — converted to SPA
 interface CorteData {
   id: string;
   openedAt: string;
@@ -33,10 +28,10 @@ interface CorteData {
   topProducts: { name: string; quantity: number }[];
 }
 
-function CortePage() {
+export default function CortePage() {
   const { id } = Route.useParams();
-  const navigate = useNavigate();
-  const [data, setData] = useState<CorteData | null>(null);
+  const goTo = (path) => { window.location.href = path; };
+const [data, setData] = useState<CorteData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -146,7 +141,7 @@ function CortePage() {
       <div className="min-h-screen flex items-center justify-center bg-white p-6 font-sans">
         <div className="text-center">
           <p className="text-red-600 mb-2">{error}</p>
-          <button onClick={() => navigate({ to: "/caja" })} className="text-sm text-blue-600 underline">Cerrar</button>
+          <button onClick={() => goTo("/caja")} className="text-sm text-blue-600 underline">Cerrar</button>
         </div>
       </div>
     );
@@ -170,7 +165,7 @@ function CortePage() {
           <button onClick={() => window.print()} className="px-8 py-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-lg transition text-lg animate-pulse">
             🖨️  IMPRIMIR CORTE
           </button>
-          <button onClick={() => navigate({ to: "/caja" })} className="px-5 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-medium transition">
+          <button onClick={() => goTo("/caja")} className="px-5 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-xl font-medium transition">
             Volver a caja
           </button>
         </div>

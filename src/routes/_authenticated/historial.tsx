@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useCallback } from "react";
 import { format, subDays } from "date-fns";
@@ -51,12 +50,8 @@ const paymentColors: Record<string, string> = {
   mixto: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
 };
 
-export const Route = createFileRoute("/_authenticated/historial")({
-  head: () => ({ meta: [{ title: "Historial de Ventas · Esquites La Parroquia" }] }),
-  component: HistorialPage,
-});
-
-function HistorialPage() {
+// Route: C:\Users\oviey\esquites\src\routes\_authenticated\historial.tsx — converted to SPA
+export default function HistorialPage() {
   // ─── Filters State ───
   const today = new Date();
   const [dateFrom, setDateFrom] = useState(format(subDays(today, 7), "yyyy-MM-dd"));

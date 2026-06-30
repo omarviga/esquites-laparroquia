@@ -1,5 +1,4 @@
-import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { getAuthContext } from "./auth.helper";
 import { getServerConfig } from "./config.server";
 import { z } from "zod";
 
@@ -56,39 +55,38 @@ const pointIntentSchema = z.object({
 
 export type PointIntentInput = z.infer<typeof pointIntentSchema>;
 
-export const createPointPaymentIntent = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data }) => {
-    const cfg = getServerConfig();
-    const token = cfg.mercadopagoAccessToken;
-    if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN no configurado");
+export const createPointPaymentIntent = async (data: PointIntentInput) => {
+  await getAuthContext(); // ensure authenticated
+  const cfg = getServerConfig();
+  const token = cfg.mercadopagoAccessToken;
+  if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN no configurado");
 
-    const { deviceId, amount, description, externalReference } = data;
+  const { deviceId, amount, description, externalReference } = data;
 
-    const result = await mpRequest(
-      token,
-      `/point/integration-api/devices/${deviceId}/payment-intents`,
-      {
-        method: "POST",
-        body: JSON.stringify({
-          amount,
-          description,
-          payment: {
-            installments: 1,
-            type: "credit_card", // also accepts debit
-          },
-          external_reference: externalReference,
-          notification_url:
-            "https://esquites-laparroquia.vercel.app/api/mp-webhook",
-        }),
-      }
-    );
+  const result = await mpRequest(
+    token,
+    `/point/integration-api/devices/${deviceId}/payment-intents`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        amount,
+        description,
+        payment: {
+          installments: 1,
+          type: "credit_card",
+        },
+        external_reference: externalReference,
+        notification_url:
+          "https://esquites-laparroquia.vercel.app/api/mp-webhook",
+      }),
+    }
+  );
 
-    return {
-      intentId: result.id,
-      status: result.status, // "open" → waiting for payment
-    };
-  });
+  return {
+    intentId: result.id,
+    status: result.status,
+  };
+};
 
 // ─── Check Point terminal payment status ──────────────────────────────
 
@@ -96,31 +94,30 @@ const checkPointSchema = z.object({
   intentId: z.string(),
 });
 
-export const checkPointPaymentStatus = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data }) => {
-    const cfg = getServerConfig();
-    const token = cfg.mercadopagoAccessToken;
-    if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN no configurado");
+export const checkPointPaymentStatus = async (data: z.infer<typeof checkPointSchema>) => {
+  await getAuthContext();
+  const cfg = getServerConfig();
+  const token = cfg.mercadopagoAccessToken;
+  if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN no configurado");
 
-    const result = await mpRequest(
-      token,
-      `/point/integration-api/payment-intents/${data.intentId}`
-    );
+  const result = await mpRequest(
+    token,
+    `/point/integration-api/payment-intents/${data.intentId}`
+  );
 
-    const isFinished = ["FINISHED", "CANCELED", "ERROR"].includes(result.status);
-    const isApproved = result.status === "FINISHED";
+  const isFinished = ["FINISHED", "CANCELED", "ERROR"].includes(result.status);
+  const isApproved = result.status === "FINISHED";
 
-    return {
-      finished: isFinished,
-      approved: isApproved,
-      status: result.status,
-      paymentId: result.payment_id?.toString(),
-      detail: result.status_detail,
-      cardBrand: result.payment?.card?.issuer?.name,
-      lastFour: result.payment?.card?.last_four_digits,
-    };
-  });
+  return {
+    finished: isFinished,
+    approved: isApproved,
+    status: result.status,
+    paymentId: result.payment_id?.toString(),
+    detail: result.status_detail,
+    cardBrand: result.payment?.card?.issuer?.name,
+    lastFour: result.payment?.card?.last_four_digits,
+  };
+};
 
 // ─── Cancel Point payment intent ──────────────────────────────────────
 
@@ -129,20 +126,19 @@ const cancelPointSchema = z.object({
   intentId: z.string(),
 });
 
-export const cancelPointPaymentIntent = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data }) => {
-    const cfg = getServerConfig();
-    const token = cfg.mercadopagoAccessToken;
-    if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN no configurado");
+export const cancelPointPaymentIntent = async (data: z.infer<typeof cancelPointSchema>) => {
+  await getAuthContext();
+  const cfg = getServerConfig();
+  const token = cfg.mercadopagoAccessToken;
+  if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN no configurado");
 
-    await mpRequest(
-      token,
-      `/point/integration-api/devices/${data.deviceId}/payment-intents/${data.intentId}`,
-      { method: "DELETE" }
-    );
-    return { ok: true };
-  });
+  await mpRequest(
+    token,
+    `/point/integration-api/devices/${data.deviceId}/payment-intents/${data.intentId}`,
+    { method: "DELETE" }
+  );
+  return { ok: true };
+};
 
 // ═════════════════════════════════════════════════════════════
 //  MERCADO PAGO QR — Pago digital con código QR
@@ -158,60 +154,65 @@ const createPreferenceSchema = z.object({
 
 export type CreatePreferenceInput = z.infer<typeof createPreferenceSchema>;
 
-export const createPaymentPreference = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data }) => {
-    const cfg = getServerConfig();
-    const token = cfg.mercadopagoAccessToken;
-    if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN no configurado");
+export const createPaymentPreference = async (data: CreatePreferenceInput) => {
+  await getAuthContext();
+  const cfg = getServerConfig();
+  const token = cfg.mercadopagoAccessToken;
+  if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN no configurado");
 
-    const { externalReference, title, amount, description, notificationUrl } = data;
+  const { externalReference, title, amount, description, notificationUrl } = data;
 
-    const preference = await mpRequest(token, "/checkout/preferences", {
-      method: "POST",
-      body: JSON.stringify({
-        items: [
-          {
-            title: description || title,
-            quantity: 1,
-            unit_price: amount,
-            currency_id: "MXN",
-          },
-        ],
-        external_reference: externalReference,
-        notification_url:
-          notificationUrl ||
-          "https://esquites-laparroquia.vercel.app/api/mp-webhook",
-        back_urls: {
-          success: "https://esquites-laparroquia.vercel.app/pos",
-          pending: "https://esquites-laparroquia.vercel.app/pos",
-          failure: "https://esquites-laparroquia.vercel.app/pos",
+  const preference = await mpRequest(token, "/checkout/preferences", {
+    method: "POST",
+    body: JSON.stringify({
+      items: [
+        {
+          title: description || title,
+          quantity: 1,
+          unit_price: amount,
+          currency_id: "MXN",
         },
-        auto_return: "approved",
-        statement_descriptor: "Esquites La Parroquia",
-      }),
-    });
-
-    const initPoint = preference.init_point;
-
-    let qrBase64 = "";
-    try {
-      const qrRes = await fetch(
-        `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(initPoint)}`
-      );
-      if (qrRes.ok) {
-        const buffer = await qrRes.arrayBuffer();
-        qrBase64 = Buffer.from(buffer).toString("base64");
-      }
-    } catch {}
-
-    return {
-      preferenceId: preference.id,
-      initPoint,
-      sandboxInitPoint: preference.sandbox_init_point,
-      qrBase64,
-    };
+      ],
+      external_reference: externalReference,
+      notification_url:
+        notificationUrl ||
+        "https://esquites-laparroquia.vercel.app/api/mp-webhook",
+      back_urls: {
+        success: "https://esquites-laparroquia.vercel.app/pos",
+        pending: "https://esquites-laparroquia.vercel.app/pos",
+        failure: "https://esquites-laparroquia.vercel.app/pos",
+      },
+      auto_return: "approved",
+      statement_descriptor: "Esquites La Parroquia",
+    }),
   });
+
+  const initPoint = preference.init_point;
+
+  let qrBase64 = "";
+  try {
+    const qrRes = await fetch(
+      `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(initPoint)}`
+    );
+    if (qrRes.ok) {
+      const buffer = await qrRes.arrayBuffer();
+      // Convert ArrayBuffer to base64 string (browser-compatible)
+      const bytes = new Uint8Array(buffer);
+      let binary = "";
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      qrBase64 = btoa(binary);
+    }
+  } catch {}
+
+  return {
+    preferenceId: preference.id,
+    initPoint,
+    sandboxInitPoint: preference.sandbox_init_point,
+    qrBase64,
+  };
+};
 
 // ─── Check QR payment status ──────────────────────────────────────────
 
@@ -230,33 +231,32 @@ export type CheckPaymentResult = {
   paymentMethod?: string;
 };
 
-export const checkPaymentStatus = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data }) => {
-    const cfg = getServerConfig();
-    const token = cfg.mercadopagoAccessToken;
-    if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN no configurado");
+export const checkPaymentStatus = async (data: CheckPaymentInput) => {
+  await getAuthContext();
+  const cfg = getServerConfig();
+  const token = cfg.mercadopagoAccessToken;
+  if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN no configurado");
 
-    const { externalReference } = data;
+  const { externalReference } = data;
 
-    const result = await mpRequest(
-      token,
-      `/v1/payments/search?external_reference=${encodeURIComponent(externalReference)}&sort=date_created&criteria=desc&limit=5`
-    );
+  const result = await mpRequest(
+    token,
+    `/v1/payments/search?external_reference=${encodeURIComponent(externalReference)}&sort=date_created&criteria=desc&limit=5`
+  );
 
-    const payment = result.results?.[0];
-    if (!payment) return { found: false, paid: false };
+  const payment = result.results?.[0];
+  if (!payment) return { found: false, paid: false };
 
-    return {
-      found: true,
-      paid: payment.status === "approved",
-      paymentId: payment.id?.toString(),
-      status: payment.status,
-      statusDetail: payment.status_detail,
-      amount: payment.transaction_amount,
-      paymentMethod: payment.payment_method_id,
-    };
-  });
+  return {
+    found: true,
+    paid: payment.status === "approved",
+    paymentId: payment.id?.toString(),
+    status: payment.status,
+    statusDetail: payment.status_detail,
+    amount: payment.transaction_amount,
+    paymentMethod: payment.payment_method_id,
+  };
+};
 
 // ═════════════════════════════════════════════════════════════
 //  PAYPAL ZETTLE — Terminal PayPal
@@ -286,14 +286,120 @@ const zettlePaymentSchema = z.object({
   externalReference: z.string(),
 });
 
-export const createZettlePayment = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data }) => {
-    const cfg = getServerConfig();
+export const createZettlePayment = async (data: z.infer<typeof zettlePaymentSchema>) => {
+  await getAuthContext();
+  const cfg = getServerConfig();
+  const token = cfg.zettleApiKey;
+  if (!token) throw new Error("ZETTLE_API_KEY no configurado");
+
+  const { amount, description, externalReference } = data;
+
+  const result = await zettleRequest(token, "/purchases/v2", {
+    method: "POST",
+    body: JSON.stringify({
+      purchase: {
+        products: [
+          {
+            name: description,
+            unitPrice: {
+              amount: Math.round(amount * 100),
+              currencyId: "MXN",
+            },
+            quantity: 1,
+          },
+        ],
+        payments: [
+          {
+            uuid: `ext-${externalReference}`,
+            amount: Math.round(amount * 100),
+          },
+        ],
+        reference: externalReference,
+      },
+    }),
+  });
+
+  return {
+    purchaseUuid: result.purchaseUUID || result.id,
+    status: "pending",
+  };
+};
+
+const checkZettleSchema = z.object({
+  purchaseUuid: z.string(),
+});
+
+export const checkZettlePaymentStatus = async (data: z.infer<typeof checkZettleSchema>) => {
+  await getAuthContext();
+  const cfg = getServerConfig();
+  const token = cfg.zettleApiKey;
+  if (!token) throw new Error("ZETTLE_API_KEY no configurado");
+
+  const result = await zettleRequest(
+    token,
+    `/purchases/v2/${data.purchaseUuid}`
+  );
+
+  const isCompleted = result.purchase?.status === "COMPLETED";
+  const payment = result.purchase?.payments?.[0];
+
+  return {
+    finished: isCompleted || result.purchase?.status === "FAILED",
+    approved: isCompleted,
+    status: result.purchase?.status,
+    paymentId: payment?.uuid,
+    cardBrand: payment?.attributes?.cardPaymentEntryMode,
+    lastFour: payment?.attributes?.maskedPan?.slice(-4),
+  };
+};
+
+// ═════════════════════════════════════════════════════════════
+//  UNIFIED TERMINAL PAYMENT (auto-detect provider)
+// ═════════════════════════════════════════════════════════════
+
+const terminalPaymentSchema = z.object({
+  provider: z.enum(["mercadopago_point", "zettle"]),
+  deviceId: z.string().optional(),
+  amount: z.number().positive(),
+  description: z.string().min(1),
+  externalReference: z.string(),
+});
+
+export const createTerminalPayment = async (data: z.infer<typeof terminalPaymentSchema>) => {
+  await getAuthContext();
+  const cfg = getServerConfig();
+
+  if (data.provider === "mercadopago_point") {
+    if (!data.deviceId) throw new Error("deviceId requerido para MP Point");
+    const token = cfg.mercadopagoAccessToken;
+    if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN no configurado");
+
+    const result = await mpRequest(
+      token,
+      `/point/integration-api/devices/${data.deviceId}/payment-intents`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          amount: data.amount,
+          description: data.description,
+          payment: { installments: 1, type: "credit_card" },
+          external_reference: data.externalReference,
+          notification_url:
+            "https://esquites-laparroquia.vercel.app/api/mp-webhook",
+        }),
+      }
+    );
+
+    return {
+      provider: "mercadopago_point" as const,
+      terminalId: result.id,
+      status: result.status,
+    };
+  }
+
+  if (data.provider === "zettle") {
     const token = cfg.zettleApiKey;
     if (!token) throw new Error("ZETTLE_API_KEY no configurado");
-
-    const { amount, description, externalReference } = data;
 
     const result = await zettleRequest(token, "/purchases/v2", {
       method: "POST",
@@ -301,9 +407,9 @@ export const createZettlePayment = createServerFn({ method: "POST" })
         purchase: {
           products: [
             {
-              name: description,
+              name: data.description,
               unitPrice: {
-                amount: Math.round(amount * 100), // Zettle uses cents
+                amount: Math.round(data.amount * 100),
                 currencyId: "MXN",
               },
               quantity: 1,
@@ -311,35 +417,61 @@ export const createZettlePayment = createServerFn({ method: "POST" })
           ],
           payments: [
             {
-              uuid: `ext-${externalReference}`,
-              amount: Math.round(amount * 100),
+              uuid: `ext-${data.externalReference}`,
+              amount: Math.round(data.amount * 100),
             },
           ],
-          reference: externalReference,
+          reference: data.externalReference,
         },
       }),
     });
 
     return {
-      purchaseUuid: result.purchaseUUID || result.id,
+      provider: "zettle" as const,
+      terminalId: result.purchaseUUID || result.id,
       status: "pending",
     };
-  });
+  }
 
-const checkZettleSchema = z.object({
-  purchaseUuid: z.string(),
+  throw new Error("Provider no soportado");
+};
+
+const checkTerminalSchema = z.object({
+  provider: z.enum(["mercadopago_point", "zettle"]),
+  terminalId: z.string(),
 });
 
-export const checkZettlePaymentStatus = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data }) => {
-    const cfg = getServerConfig();
+export const checkTerminalPaymentStatus = async (data: z.infer<typeof checkTerminalSchema>) => {
+  await getAuthContext();
+  const cfg = getServerConfig();
+
+  if (data.provider === "mercadopago_point") {
+    const token = cfg.mercadopagoAccessToken;
+    if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN no configurado");
+
+    const result = await mpRequest(
+      token,
+      `/point/integration-api/payment-intents/${data.terminalId}`
+    );
+
+    return {
+      finished: ["FINISHED", "CANCELED", "ERROR"].includes(result.status),
+      approved: result.status === "FINISHED",
+      status: result.status,
+      paymentId: result.payment_id?.toString(),
+      detail: result.status_detail,
+      cardBrand: result.payment?.card?.issuer?.name,
+      lastFour: result.payment?.card?.last_four_digits,
+    };
+  }
+
+  if (data.provider === "zettle") {
     const token = cfg.zettleApiKey;
     if (!token) throw new Error("ZETTLE_API_KEY no configurado");
 
     const result = await zettleRequest(
       token,
-      `/purchases/v2/${data.purchaseUuid}`
+      `/purchases/v2/${data.terminalId}`
     );
 
     const isCompleted = result.purchase?.status === "COMPLETED";
@@ -353,148 +485,10 @@ export const checkZettlePaymentStatus = createServerFn({ method: "GET" })
       cardBrand: payment?.attributes?.cardPaymentEntryMode,
       lastFour: payment?.attributes?.maskedPan?.slice(-4),
     };
-  });
+  }
 
-// ═════════════════════════════════════════════════════════════
-//  UNIFIED TERMINAL PAYMENT (auto-detect provider)
-// ═════════════════════════════════════════════════════════════
-
-const terminalPaymentSchema = z.object({
-  provider: z.enum(["mercadopago_point", "zettle"]),
-  // Mercado Pago Point
-  deviceId: z.string().optional(),
-  // Common
-  amount: z.number().positive(),
-  description: z.string().min(1),
-  externalReference: z.string(),
-});
-
-export const createTerminalPayment = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data }) => {
-    const cfg = getServerConfig();
-
-    if (data.provider === "mercadopago_point") {
-      if (!data.deviceId) throw new Error("deviceId requerido para MP Point");
-      const token = cfg.mercadopagoAccessToken;
-      if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN no configurado");
-
-      const result = await mpRequest(
-        token,
-        `/point/integration-api/devices/${data.deviceId}/payment-intents`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            amount: data.amount,
-            description: data.description,
-            payment: { installments: 1, type: "credit_card" },
-            external_reference: data.externalReference,
-            notification_url:
-              "https://esquites-laparroquia.vercel.app/api/mp-webhook",
-          }),
-        }
-      );
-
-      return {
-        provider: "mercadopago_point" as const,
-        terminalId: result.id,
-        status: result.status,
-      };
-    }
-
-    if (data.provider === "zettle") {
-      const token = cfg.zettleApiKey;
-      if (!token) throw new Error("ZETTLE_API_KEY no configurado");
-
-      const result = await zettleRequest(token, "/purchases/v2", {
-        method: "POST",
-        body: JSON.stringify({
-          purchase: {
-            products: [
-              {
-                name: data.description,
-                unitPrice: {
-                  amount: Math.round(data.amount * 100),
-                  currencyId: "MXN",
-                },
-                quantity: 1,
-              },
-            ],
-            payments: [
-              {
-                uuid: `ext-${data.externalReference}`,
-                amount: Math.round(data.amount * 100),
-              },
-            ],
-            reference: data.externalReference,
-          },
-        }),
-      });
-
-      return {
-        provider: "zettle" as const,
-        terminalId: result.purchaseUUID || result.id,
-        status: "pending",
-      };
-    }
-
-    throw new Error("Provider no soportado");
-  });
-
-const checkTerminalSchema = z.object({
-  provider: z.enum(["mercadopago_point", "zettle"]),
-  terminalId: z.string(),
-});
-
-export const checkTerminalPaymentStatus = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data }) => {
-    const cfg = getServerConfig();
-
-    if (data.provider === "mercadopago_point") {
-      const token = cfg.mercadopagoAccessToken;
-      if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN no configurado");
-
-      const result = await mpRequest(
-        token,
-        `/point/integration-api/payment-intents/${data.terminalId}`
-      );
-
-      return {
-        finished: ["FINISHED", "CANCELED", "ERROR"].includes(result.status),
-        approved: result.status === "FINISHED",
-        status: result.status,
-        paymentId: result.payment_id?.toString(),
-        detail: result.status_detail,
-        cardBrand: result.payment?.card?.issuer?.name,
-        lastFour: result.payment?.card?.last_four_digits,
-      };
-    }
-
-    if (data.provider === "zettle") {
-      const token = cfg.zettleApiKey;
-      if (!token) throw new Error("ZETTLE_API_KEY no configurado");
-
-      const result = await zettleRequest(
-        token,
-        `/purchases/v2/${data.terminalId}`
-      );
-
-      const isCompleted = result.purchase?.status === "COMPLETED";
-      const payment = result.purchase?.payments?.[0];
-
-      return {
-        finished: isCompleted || result.purchase?.status === "FAILED",
-        approved: isCompleted,
-        status: result.purchase?.status,
-        paymentId: payment?.uuid,
-        cardBrand: payment?.attributes?.cardPaymentEntryMode,
-        lastFour: payment?.attributes?.maskedPan?.slice(-4),
-      };
-    }
-
-    throw new Error("Provider no soportado");
-  });
+  throw new Error("Provider no soportado");
+};
 
 // ═════════════════════════════════════════════════════════════
 //  WEBHOOK handler
@@ -513,49 +507,48 @@ const webhookSchema = z.object({
 
 export type WebhookPayload = z.infer<typeof webhookSchema>;
 
-export const handleMercadoPagoWebhook = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data, context }) => {
-    const cfg = getServerConfig();
-    if (data.type !== "payment") {
-      return { received: true, processed: false, reason: "not a payment" };
-    }
+export const handleMercadoPagoWebhook = async (data: WebhookPayload) => {
+  const { supabase } = await getAuthContext();
+  const cfg = getServerConfig();
+  if (data.type !== "payment") {
+    return { received: true, processed: false, reason: "not a payment" };
+  }
 
-    const paymentId = data.data.id;
-    const token = cfg.mercadopagoAccessToken;
-    if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN no configurado");
+  const paymentId = data.data.id;
+  const token = cfg.mercadopagoAccessToken;
+  if (!token) throw new Error("MERCADOPAGO_ACCESS_TOKEN no configurado");
 
-    const payment = await mpRequest(token, `/v1/payments/${paymentId}`);
-    const externalRef = payment.external_reference;
+  const payment = await mpRequest(token, `/v1/payments/${paymentId}`);
+  const externalRef = payment.external_reference;
 
-    if (!externalRef) {
-      return { received: true, processed: false, reason: "no external_reference" };
-    }
+  if (!externalRef) {
+    return { received: true, processed: false, reason: "no external_reference" };
+  }
 
-    const { error } = await context.supabase
-      .from("sales")
-      .update({
-        payment_id: paymentId,
-        payment_status: payment.status,
-        payment_method: payment.payment_method_id,
-        payment_details: {
-          status_detail: payment.status_detail,
-          transaction_amount: payment.transaction_amount,
-          date_approved: payment.date_approved,
-          payer_email: payment.payer?.email,
-        },
-      })
-      .eq("id", externalRef);
+  const { error } = await supabase
+    .from("sales")
+    .update({
+      payment_id: paymentId,
+      payment_status: payment.status,
+      payment_method: payment.payment_method_id,
+      payment_details: {
+        status_detail: payment.status_detail,
+        transaction_amount: payment.transaction_amount,
+        date_approved: payment.date_approved,
+        payer_email: payment.payer?.email,
+      },
+    })
+    .eq("id", externalRef);
 
-    if (error) {
-      console.error("Error updating sale payment:", error);
-      throw error;
-    }
+  if (error) {
+    console.error("Error updating sale payment:", error);
+    throw error;
+  }
 
-    return {
-      received: true,
-      processed: payment.status === "approved",
-      status: payment.status,
-      reference: externalRef,
-    };
-  });
+  return {
+    received: true,
+    processed: payment.status === "approved",
+    status: payment.status,
+    reference: externalRef,
+  };
+};

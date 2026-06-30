@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { type LucideIcon, Construction } from "lucide-react";
 import * as Icons from "lucide-react";
 
@@ -20,7 +19,7 @@ function PlaceholderPage({ title, subtitle, icon: Icon }: { title: string; subti
           <h2 className="font-display text-2xl mb-2">Módulo en construcción</h2>
           <p className="text-muted-foreground max-w-md mx-auto">
             Este módulo está listo para conectarse con la base de datos. La estructura visual y de navegación
-            ya forma parte del sistema — la lógica completa se habilitará al activar Lovable Cloud.
+            ya forma parte del sistema — la lógica completa se habilitará al conectar el backend.
           </p>
         </div>
       </div>

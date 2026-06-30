@@ -19,6 +19,7 @@ CREATE POLICY settings_select_admin ON public.settings
     OR public.has_role(auth.uid(), 'supervisor')
   );
 
+DROP VIEW IF EXISTS public.settings_public CASCADE;
 CREATE OR REPLACE VIEW public.settings_public
 WITH (security_invoker = true) AS
 SELECT id, business_name, slogan, footer_message, tax

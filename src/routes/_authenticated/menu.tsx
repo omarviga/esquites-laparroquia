@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { QRCodeCanvas } from "qrcode.react";
@@ -15,11 +14,7 @@ import {
   getMenuSignedUrl,
 } from "@/lib/menus.functions";
 
-export const Route = createFileRoute("/_authenticated/menu")({
-  ssr: false,
-  component: MenuPage,
-});
-
+// Route: C:\Users\oviey\esquites\src\routes\_authenticated\menu.tsx — converted to SPA
 type Menu = {
   id: string;
   filename: string | null;
@@ -40,7 +35,7 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
-function MenuPage() {
+export default function MenuPage() {
   const list = useServerFn(listMenus);
   const upload = useServerFn(uploadMenu);
   const activate = useServerFn(setActiveMenu);

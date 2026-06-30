@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { Search, Trash2, Plus, Minus, X, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -20,13 +19,7 @@ import { crmApi } from "@/lib/crm.functions";
 import { buildTicketHash, printTicketBrowser } from "@/lib/utils";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/_authenticated/pos")({
-  ssr: false,
-  head: () => ({ meta: [{ title: "Punto de Venta · Esquites La Parroquia" }] }),
-  component: POSPage,
-});
-
-function POSPage() {
+export default function POSPage() {
   const [mounted, setMounted] = useState(false);
 
   const catsQ = useQuery({ queryKey: ["pos-cats"], queryFn: () => listCategories() });
@@ -72,7 +65,6 @@ function POSPage() {
   const playSaleSound = useCallback(() => {
     try {
       const ctx = new AudioContext();
-      // Cash register "cha-ching" — two quick rising tones
       const now = ctx.currentTime;
       [523.25, 659.25, 783.99].forEach((freq, i) => {
         const osc = ctx.createOscillator();
@@ -91,19 +83,16 @@ function POSPage() {
   // ─── Keyboard Shortcuts ───
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      // Ignore if typing in an input
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
       const key = e.key.toLowerCase();
 
-      // / or Ctrl+K → focus search
       if (key === "/" || (e.ctrlKey && key === "k")) {
         e.preventDefault();
         searchRef.current?.focus();
         return;
       }
 
-      // Escape → clear search / close modal dialogs
       if (key === "escape") {
         if (query) { setQuery(""); return; }
         if (modProduct) { setModProduct(null); return; }
@@ -112,7 +101,6 @@ function POSPage() {
         return;
       }
 
-      // F1-F9 → select category by index
       const catNum = parseInt(key);
       if (key.startsWith("f") && key.length > 1) {
         const fn = parseInt(key.slice(1));
@@ -124,14 +112,12 @@ function POSPage() {
         }
       }
 
-      // Enter → open checkout if cart has items
       if (key === "enter" && cart.items.length > 0 && !checkoutOpen) {
         e.preventDefault();
         setCheckoutOpen(true);
         return;
       }
 
-      // Numpad + / - for last cart item qty
       if (cart.items.length > 0) {
         const lastItem = cart.items[cart.items.length - 1];
         if (key === "+" || key === "=") { cart.setQty(lastItem.uid, lastItem.quantity + 1); return; }
@@ -223,7 +209,6 @@ function POSPage() {
           }))
         }))
       };
-      // Pre-generate a saleId for the QR reference
       const tempId = crypto.randomUUID();
       setPendingDigitalSale({ ...saleData, saleId: tempId, folio });
       setCheckoutOpen(false);
@@ -231,6 +216,7 @@ function POSPage() {
       return;
     }
 
+    // Efectivo - procesar directamente
     setIsSaving(true);
     try {
       const folio = nextFolio();
@@ -257,42 +243,50 @@ function POSPage() {
 
       let saleId = "";
       let autoPrint = false;
+      let isBuffered = false;
 
       if (!navigator.onLine) {
-        // Offline Buffering
         const buffer = JSON.parse(localStorage.getItem("buffered_sales") || "[]");
         saleId = `offline-${crypto.randomUUID()}`;
+        isBuffered = true;
         buffer.push({ ...saleData, id: saleId, createdAt: new Date().toISOString() });
         localStorage.setItem("buffered_sales", JSON.stringify(buffer));
         toast.warning("Sin conexión. Venta guardada localmente.");
       } else {
-        const result = await saveSale({ data: saleData });
+        // ✅ CORREGIDO: Sin wrapper
+        const result = await saveSale(saleData);
         saleId = result.saleId;
         autoPrint = result.autoPrint;
       }
+
+      // ✅ Guardar referencia de items ANTES de limpiar
+      const currentItems = [...cart.items];
 
       const completedSale = {
         id: saleId,
         folio,
         createdAt: new Date().toISOString(),
         cashier: "Cajero",
-        items: cart.items,
+        items: currentItems,
         subtotal: totals.subtotal,
         tax: totals.tax,
         total: totals.total,
         payment: method,
         received,
         change,
-        isBuffered: !navigator.onLine
+        isBuffered
       };
 
       addSale(completedSale);
       setLastSale(completedSale);
       setCheckoutOpen(false);
+      
+      // ✅ Limpiar carrito
       cart.clear();
       playSaleSound();
 
-      if (autoPrint && saleId) {
+      // ✅ Imprimir usando los items guardados
+      if (autoPrint && saleId && !isBuffered) {
         printTicketBrowser({
           cashier: "Cajero",
           folio,
@@ -303,7 +297,7 @@ function POSPage() {
           paymentMethod: method,
           cashReceived: received,
           changeAmount: change,
-          items: cart.items.map(i => ({
+          items: currentItems.map(i => ({
             name: i.product.name,
             quantity: i.quantity,
             unitPrice: i.unitPrice,
@@ -311,6 +305,7 @@ function POSPage() {
           })),
         });
       }
+
     } catch (e: any) {
       toast.error(`Error al guardar venta: ${e.message}`);
     } finally {
@@ -422,7 +417,7 @@ function POSPage() {
               <div className="flex justify-between items-center bg-gold/10 p-2 rounded-lg border border-gold/20">
                 <div className="flex items-center gap-2">
                   <div className="size-6 bg-gold rounded-full flex items-center justify-center text-[10px] font-bold text-black uppercase">
-                    {selectedCustomer?.name[0]}
+                    {selectedCustomer?.name?.[0]}
                   </div>
                   <div className="text-xs">
                     <div className="font-bold truncate max-w-[120px]">{selectedCustomer?.name}</div>
@@ -522,14 +517,19 @@ function POSPage() {
           onOpenChange={(o) => { if (!o) setPendingDigitalSale(null); setQrDialogOpen(o); }}
           onPaid={async () => {
             try {
-              const result = await saveSale({ data: pendingDigitalSale });
+              // ✅ CORREGIDO: Sin wrapper
+              const result = await saveSale(pendingDigitalSale);
               const saleId = result.saleId;
+              
+              // ✅ Guardar referencia ANTES de limpiar
+              const currentItems = [...cart.items];
+              
               const completedSale = {
                 id: saleId,
                 folio: pendingDigitalSale.folio,
                 createdAt: new Date().toISOString(),
                 cashier: "Cajero",
-                items: cart.items,
+                items: currentItems,
                 subtotal: totals.subtotal,
                 tax: totals.tax,
                 total: totals.total,
@@ -538,9 +538,13 @@ function POSPage() {
               };
               addSale(completedSale);
               setLastSale(completedSale);
+              
+              // ✅ Limpiar después de guardar referencia
               cart.clear();
               playSaleSound();
               setPendingDigitalSale(null);
+              
+              // ✅ Imprimir usando items guardados
               if (result.autoPrint) {
                 printTicketBrowser({
                   cashier: "Cajero",
@@ -550,7 +554,7 @@ function POSPage() {
                   tax: totals.tax,
                   total: totals.total,
                   paymentMethod: "digital",
-                  items: cart.items.map(i => ({
+                  items: currentItems.map(i => ({
                     name: i.product.name,
                     quantity: i.quantity,
                     unitPrice: i.unitPrice,
@@ -575,14 +579,19 @@ function POSPage() {
           onOpenChange={(o) => { if (!o) setPendingTerminalSale(null); setTerminalOpen(o); }}
           onPaid={async () => {
             try {
-              const result = await saveSale({ data: pendingTerminalSale });
+              // ✅ CORREGIDO: Sin wrapper
+              const result = await saveSale(pendingTerminalSale);
               const saleId = result.saleId;
+              
+              // ✅ Guardar referencia ANTES de limpiar
+              const currentItems = [...cart.items];
+              
               const completedSale = {
                 id: saleId,
                 folio: pendingTerminalSale.folio,
                 createdAt: new Date().toISOString(),
                 cashier: "Cajero",
-                items: cart.items,
+                items: currentItems,
                 subtotal: totals.subtotal,
                 tax: totals.tax,
                 total: totals.total,
@@ -591,9 +600,13 @@ function POSPage() {
               };
               addSale(completedSale);
               setLastSale(completedSale);
+              
+              // ✅ Limpiar después de guardar referencia
               cart.clear();
               playSaleSound();
               setPendingTerminalSale(null);
+              
+              // ✅ Imprimir usando items guardados
               if (result.autoPrint) {
                 printTicketBrowser({
                   cashier: "Cajero",
@@ -603,7 +616,7 @@ function POSPage() {
                   tax: totals.tax,
                   total: totals.total,
                   paymentMethod: "tarjeta",
-                  items: cart.items.map(i => ({
+                  items: currentItems.map(i => ({
                     name: i.product.name,
                     quantity: i.quantity,
                     unitPrice: i.unitPrice,

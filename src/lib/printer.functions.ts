@@ -1,6 +1,5 @@
-import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { getAuthContext } from "./auth.helper";
 import { getLogoRaster } from "./printer-logo";
 
 const printInput = z.object({ saleId: z.string().uuid() });
@@ -93,7 +92,7 @@ async function buildTicketBuffer(opts: {
 
 async function buildCashCutBuffer(opts: {
   settings: PrinterSettings;
-  register: any; // We use any because columns might not be in types yet
+  register: any;
   cashier: string;
 }): Promise<Uint8Array> {
   const EscPosEncoder = (await import("esc-pos-encoder")).default;
@@ -158,7 +157,7 @@ async function buildCashCutBuffer(opts: {
     e = e.align("center").line("DESGLOSE DE EFECTIVO").align("left");
     const items = Object.entries(breakdown).map(([k, v]) => {
       const val = parseFloat(k);
-      const isBill = [1000, 500, 200, 100, 50].includes(val) || (val === 20 && !reg.closing_breakdown); // Rough heuristic
+      const isBill = [1000, 500, 200, 100, 50].includes(val) || (val === 20 && !reg.closing_breakdown);
       return { val, qty: Number(v), type: val >= 50 ? 'B' : 'M' };
     }).filter(i => i.qty > 0).sort((a, b) => b.val - a.val);
 
@@ -234,140 +233,91 @@ const wrapText = (text: string, width: number) => {
 };
 
 async function sendToPrinter(ip: string, port: number, data: Uint8Array): Promise<void> {
-  const timeout = 5000; // 5 seconds timeout for WiFi printers
-
-  try {
-    // Obscure the specifier so Vite/Rollup doesn't try to resolve it at build time.
-    const mod = "cloudflare" + ":" + "sockets";
-    const { connect } = await (Function("s", "return import(s)")(mod) as Promise<any>);
-    const socket = connect({ hostname: ip, port });
-    const writer = socket.writable.getWriter();
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("Timeout de conexión con la impresora (WiFi)")), timeout)
-    );
-    try {
-      await Promise.race([writer.write(data), timeoutPromise]);
-      await writer.close();
-      return;
-    } finally {
-      try { writer.releaseLock(); } catch { }
-    }
-  } catch {
-    // Falls through to Node.js check
-  }
-
-  // Try Node.js Net (Local Dev / VPS)
-  try {
-    const net = await import("node:net");
-    return new Promise((resolve, reject) => {
-      const client = new net.Socket();
-      client.setTimeout(timeout);
-
-      client.connect(port, ip, () => {
-        client.write(Buffer.from(data), () => {
-          client.end();
-          resolve();
-        });
-      });
-
-      client.on("error", (err) => {
-        client.destroy();
-        reject(new Error(`Error de impresora: ${err.message}`));
-      });
-
-      client.on("timeout", () => {
-        client.destroy();
-        reject(new Error("Timeout de conexión con la impresora (WiFi)"));
-      });
-    });
-  } catch (e) {
-    throw new Error("El entorno actual no soporta impresión directa por socket TCP.");
-  }
+  // Browser-based printing: try Web Serial API or just throw an error
+  // This was originally a server-side TCP socket connection
+  throw new Error(
+    "La impresión directa por TCP solo está disponible en el entorno de escritorio (Electron/Tauri). " +
+    "Usa la función de impresión del navegador como alternativa."
+  );
 }
 
-export const printSaleTicket = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    const [{ data: settings }, { data: sale }] = await Promise.all([
-      supabase.from("settings").select("*").limit(1).maybeSingle(),
-      supabase.from("sales").select("*, sale_items(*, sale_item_modifiers(*))").eq("id", data.saleId).single(),
-    ]);
-    if (!settings) throw new Error("Configuración no encontrada.");
-    if (!settings.printer_enabled) throw new Error("La impresora térmica no está habilitada.");
-    if (!settings.printer_ip) throw new Error("Falta la IP de la impresora.");
-    if (!sale) throw new Error("Venta no encontrada.");
+export const printSaleTicket = async (data: z.infer<typeof printInput>) => {
+  const { supabase } = await getAuthContext();
+  const [{ data: settings }, { data: sale }] = await Promise.all([
+    supabase.from("settings").select("*").limit(1).maybeSingle(),
+    supabase.from("sales").select("*, sale_items(*, sale_item_modifiers(*))").eq("id", data.saleId).single(),
+  ]);
+  if (!settings) throw new Error("Configuración no encontrada.");
+  if (!settings.printer_enabled) throw new Error("La impresora térmica no está habilitada.");
+  if (!settings.printer_ip) throw new Error("Falta la IP de la impresora.");
+  if (!sale) throw new Error("Venta no encontrada.");
 
-    const { data: profile } = sale.user_id
-      ? await supabase.from("profiles").select("full_name").eq("id", sale.user_id).maybeSingle()
-      : { data: null as { full_name: string | null } | null };
+  const { data: profile } = sale.user_id
+    ? await supabase.from("profiles").select("full_name").eq("id", sale.user_id).maybeSingle()
+    : { data: null as { full_name: string | null } | null };
 
-    const buffer = await buildTicketBuffer({
-      settings,
-      folio: sale.folio,
-      createdAt: sale.created_at ?? new Date().toISOString(),
-      cashier: profile?.full_name ?? "Cajero",
-      items: (sale.sale_items ?? []).map((i: any) => ({
-        name: i.product_name ?? "Producto",
-        qty: i.quantity,
-        price: Number(i.unit_price),
-        modifiers: (i.sale_item_modifiers ?? []).map((m: any) => m.modifier_name).filter(Boolean),
-      })),
-      subtotal: Number(sale.subtotal),
-      tax: Number(sale.tax ?? 0),
-      total: Number(sale.total),
-      payment: sale.payment_method ?? "efectivo",
-      received: sale.cash_received != null ? Number(sale.cash_received) : undefined,
-      change: sale.change_amount != null ? Number(sale.change_amount) : undefined,
-    });
-
-    await sendToPrinter(settings.printer_ip!, settings.printer_port ?? 9100, buffer);
-    return { ok: true };
+  const buffer = await buildTicketBuffer({
+    settings,
+    folio: sale.folio,
+    createdAt: sale.created_at ?? new Date().toISOString(),
+    cashier: profile?.full_name ?? "Cajero",
+    items: (sale.sale_items ?? []).map((i: any) => ({
+      name: i.product_name ?? "Producto",
+      qty: i.quantity,
+      price: Number(i.unit_price),
+      modifiers: (i.sale_item_modifiers ?? []).map((m: any) => m.modifier_name).filter(Boolean),
+    })),
+    subtotal: Number(sale.subtotal),
+    tax: Number(sale.tax ?? 0),
+    total: Number(sale.total),
+    payment: sale.payment_method ?? "efectivo",
+    received: sale.cash_received != null ? Number(sale.cash_received) : undefined,
+    change: sale.change_amount != null ? Number(sale.change_amount) : undefined,
   });
 
-export const testPrinter = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { supabase } = context;
-    const { data: settings } = await supabase.from("settings").select("*").limit(1).maybeSingle();
-    if (!settings?.printer_ip) throw new Error("Configura la IP de la impresora primero.");
+  await sendToPrinter(settings.printer_ip!, settings.printer_port ?? 9100, buffer);
+  return { ok: true };
+};
 
-    const buffer = await buildTicketBuffer({
-      settings,
-      folio: "TEST",
-      createdAt: new Date().toISOString(),
-      cashier: "Sistema",
-      items: [{ name: "Prueba de impresión", qty: 1, price: 0, modifiers: ["OK"] }],
-      subtotal: 0, tax: 0, total: 0, payment: "test",
-    });
-    await sendToPrinter(settings.printer_ip, settings.printer_port ?? 9100, buffer);
-    return { ok: true };
+export const testPrinter = async () => {
+  const { supabase } = await getAuthContext();
+  const { data: settings } = await supabase.from("settings").select("*").limit(1).maybeSingle();
+  if (!settings?.printer_ip) throw new Error("Configura la IP de la impresora primero.");
+
+  const buffer = await buildTicketBuffer({
+    settings,
+    folio: "TEST",
+    createdAt: new Date().toISOString(),
+    cashier: "Sistema",
+    items: [{ name: "Prueba de impresión", qty: 1, price: 0, modifiers: ["OK"] }],
+    subtotal: 0, tax: 0, total: 0, payment: "test",
+  });
+  await sendToPrinter(settings.printer_ip, settings.printer_port ?? 9100, buffer);
+  return { ok: true };
+};
+
+export const printCashCutReceipt = async (data: z.infer<typeof printCashCutInput>) => {
+  const { supabase } = await getAuthContext();
+  const [{ data: settings }, { data: register }] = await Promise.all([
+    supabase.from("settings").select("*").limit(1).maybeSingle(),
+    supabase.from("cash_register").select("*").eq("id", data.registerId).single(),
+  ]);
+
+  if (!settings) throw new Error("Configuración no encontrada.");
+  if (!settings.printer_enabled) throw new Error("La impresora térmica no está habilitada.");
+  if (!settings.printer_ip) throw new Error("Falta la IP de la impresora.");
+  if (!register) throw new Error("Sesión de caja no encontrada.");
+
+  const { data: profile } = register.user_id
+    ? await supabase.from("profiles").select("full_name").eq("id", register.user_id).maybeSingle()
+    : { data: null as { full_name: string | null } | null };
+
+  const buffer = await buildCashCutBuffer({
+    settings,
+    register,
+    cashier: profile?.full_name ?? "Cajero",
   });
 
-export const printCashCutReceipt = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    const [{ data: settings }, { data: register }] = await Promise.all([
-      supabase.from("settings").select("*").limit(1).maybeSingle(),
-      supabase.from("cash_register").select("*").eq("id", data.registerId).single(),
-    ]);
-
-    if (!settings) throw new Error("Configuración no encontrada.");
-    if (!settings.printer_enabled) throw new Error("La impresora térmica no está habilitada.");
-    if (!settings.printer_ip) throw new Error("Falta la IP de la impresora.");
-    if (!register) throw new Error("Sesión de caja no encontrada.");
-
-    const { data: profile } = register.user_id
-      ? await supabase.from("profiles").select("full_name").eq("id", register.user_id).maybeSingle()
-      : { data: null as { full_name: string | null } | null };
-
-    const buffer = await buildCashCutBuffer({
-      settings,
-      register,
-      cashier: profile?.full_name ?? "Cajero",
-    });
-
-    await sendToPrinter(settings.printer_ip, settings.printer_port ?? 9100, buffer);
-    return { ok: true };
-  });
+  await sendToPrinter(settings.printer_ip, settings.printer_port ?? 9100, buffer);
+  return { ok: true };
+};

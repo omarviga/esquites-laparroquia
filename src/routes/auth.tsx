@@ -1,4 +1,3 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,13 +8,9 @@ import { Logo } from "@/components/Logo";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
-export const Route = createFileRoute("/auth")({
-  head: () => ({ meta: [{ title: "Iniciar sesión · Esquites La Parroquia" }] }),
-  component: AuthPage,
-});
+const goTo = (path: string) => { window.location.href = path; };
 
-function AuthPage() {
-  const navigate = useNavigate();
+export default function AuthPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -23,9 +18,9 @@ function AuthPage() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/pos" });
+      if (data.session) goTo("/pos");
     });
-  }, [navigate]);
+  }, []);
 
   const onLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +29,7 @@ function AuthPage() {
     setBusy(false);
     if (error) return toast.error(error.message);
     toast.success("¡Bienvenido!");
-    navigate({ to: "/pos" });
+    goTo("/pos");
   };
 
   const onSignup = async (e: React.FormEvent) => {

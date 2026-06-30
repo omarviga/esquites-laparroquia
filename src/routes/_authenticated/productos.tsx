@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { Plus, Pencil, Trash2, Tag, Package, Loader2, Search } from "lucide-react";
@@ -18,10 +17,7 @@ import {
   listCategories, upsertCategory, deleteCategory,
 } from "@/lib/products.functions";
 
-export const Route = createFileRoute("/_authenticated/productos")({
-  component: ProductsPage,
-});
-
+// Route: C:\Users\oviey\esquites\src\routes\_authenticated\productos.tsx — converted to SPA
 type Category = { id: string; name: string; icon: string | null };
 type Product = {
   id: string;
@@ -46,7 +42,7 @@ const emptyProduct = {
   display_order: 0,
 };
 
-function ProductsPage() {
+export default function ProductsPage() {
   const [mounted, setMounted] = useState(false);
   const fnListProducts = useServerFn(listProducts);
   const fnListCategories = useServerFn(listCategories);

@@ -2,7 +2,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Printer, X, Ban, Loader2 } from "lucide-react";
-import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { getSaleDetail, cancelSaleFn, type SaleDetail } from "@/lib/history.functions";
 import { buildTicketHash } from "@/lib/utils";
@@ -31,8 +30,8 @@ export function SaleDetailDialog({
   onOpenChange: (b: boolean) => void;
   onCancelled?: () => void;
 }) {
-  const getDetail = useServerFn(getSaleDetail);
-  const doCancel = useServerFn(cancelSaleFn);
+  const getDetail = getSaleDetail;
+  const doCancel = cancelSaleFn;
   const [detail, setDetail] = useState<SaleDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [cancelling, setCancelling] = useState(false);

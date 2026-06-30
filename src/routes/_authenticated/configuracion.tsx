@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import type { ChangeEvent } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -16,11 +15,7 @@ import { getSettings, updateSettings } from "@/lib/settings.functions";
 import { testPrinter } from "@/lib/printer.functions";
 import { printTicketBrowser } from "@/lib/utils";
 
-export const Route = createFileRoute("/_authenticated/configuracion")({
-  ssr: false,
-  component: ConfigPage,
-});
-
+// Route: C:\Users\oviey\esquites\src\routes\_authenticated\configuracion.tsx — converted to SPA
 type Settings = {
   business_name: string | null;
   slogan: string | null;
@@ -69,7 +64,7 @@ const defaults: Settings = {
   zettle_api_key: "",
 };
 
-function ConfigPage() {
+export default function ConfigPage() {
   const fnGet = useServerFn(getSettings);
   const fnUpdate = useServerFn(updateSettings);
   const fnTest = useServerFn(testPrinter);
@@ -97,30 +92,29 @@ function ConfigPage() {
   const onSave = async () => {
     setSaving(true);
     try {
+      // ✅ CORREGIDO: Sin wrapper "data:"
       await fnUpdate({
-        data: {
-          business_name: s.business_name ?? undefined,
-          slogan: s.slogan ?? undefined,
-          address: s.address ?? undefined,
-          phone: s.phone ?? undefined,
-          rfc: s.rfc ?? undefined,
-          footer_message: s.footer_message ?? undefined,
-          whatsapp_number: s.whatsapp_number ?? undefined,
-          tax: s.tax ?? 0,
-          printer_enabled: !!s.printer_enabled,
-          printer_ip: s.printer_ip ?? undefined,
-          printer_port: s.printer_port ?? 9100,
-          printer_width: (s.printer_width === 58 ? 58 : 80) as 58 | 80,
-          auto_print: !!s.auto_print,
-          auto_cut: !!s.auto_cut,
-          open_drawer: !!s.open_drawer,
-          logo_url: s.logo_url ?? undefined,
-          logo_data: s.logo_data ?? undefined,
-          show_logo: !!s.show_logo,
-          payment_provider: s.payment_provider ?? undefined,
-          mp_device_id: s.mp_device_id ?? undefined,
-          zettle_api_key: s.zettle_api_key ?? undefined,
-        },
+        business_name: s.business_name ?? undefined,
+        slogan: s.slogan ?? undefined,
+        address: s.address ?? undefined,
+        phone: s.phone ?? undefined,
+        rfc: s.rfc ?? undefined,
+        footer_message: s.footer_message ?? undefined,
+        whatsapp_number: s.whatsapp_number ?? undefined,
+        tax: s.tax ?? 0,
+        printer_enabled: !!s.printer_enabled,
+        printer_ip: s.printer_ip ?? undefined,
+        printer_port: s.printer_port ?? 9100,
+        printer_width: (s.printer_width === 58 ? 58 : 80) as 58 | 80,
+        auto_print: !!s.auto_print,
+        auto_cut: !!s.auto_cut,
+        open_drawer: !!s.open_drawer,
+        logo_url: s.logo_url ?? undefined,
+        logo_data: s.logo_data ?? undefined,
+        show_logo: !!s.show_logo,
+        payment_provider: s.payment_provider ?? undefined,
+        mp_device_id: s.mp_device_id ?? undefined,
+        zettle_api_key: s.zettle_api_key ?? undefined,
       });
       toast.success("Configuración guardada");
     } catch (e: any) {
@@ -133,7 +127,8 @@ function ConfigPage() {
   const onTest = async () => {
     setTesting(true);
     try {
-      await fnTest({ data: {} });
+      // ✅ CORREGIDO: Sin wrapper "data:"
+      await fnTest({});
       toast.success("Ticket de prueba enviado a la impresora");
     } catch (e: any) {
       toast.error(`No se pudo imprimir: ${e.message}`);

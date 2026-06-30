@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -83,12 +82,8 @@ function playAlertSound() {
   } catch {}
 }
 
-export const Route = createFileRoute("/_authenticated/cocina")({
-  head: () => ({ meta: [{ title: "Monitor de Cocina · Esquites La Parroquia" }] }),
-  component: KDSPage,
-});
-
-function KDSPage() {
+// Route: C:\Users\oviey\esquites\src\routes\_authenticated\cocina.tsx — converted to SPA
+export default function KDSPage() {
   const qc = useQueryClient();
   const updateStatus = useServerFn(updateKdsStatus);
   const [soundEnabled, setSoundEnabled] = useState(true);

@@ -1,14 +1,10 @@
 {
-  "builds": [
+  "buildCommand": "",
+  "outputDirectory": "dist",
+  "rewrites": [
     {
-      "src": "package.json",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": ".output/server/index.mjs"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }

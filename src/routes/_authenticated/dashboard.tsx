@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { analyticsApi } from "@/lib/analytics.functions";
@@ -35,11 +34,7 @@ const methodColors: Record<string, string> = {
   mixto: "#f59e0b",
 };
 
-export const Route = createFileRoute("/_authenticated/dashboard")({
-  head: () => ({ meta: [{ title: "Dashboard · Esquites La Parroquia" }] }),
-  component: Dashboard,
-});
-
+// Route: C:\Users\oviey\esquites\src\routes\_authenticated\dashboard.tsx — converted to SPA
 function Dashboard() {
   const [period, setPeriod] = useState(0); // 0 = today
   const today = new Date();
@@ -296,3 +291,4 @@ function Row({ label, value, muted, bold, accent }: { label: string; value: stri
     </div>
   );
 }
+export default Dashboard;

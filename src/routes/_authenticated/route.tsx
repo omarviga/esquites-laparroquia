@@ -1,27 +1,46 @@
-import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { useState, useEffect, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Sidebar } from "@/components/Sidebar";
+import { OfflineSync } from "@/components/OfflineSync";
+import { Toaster } from "sonner";
 
-export const Route = createFileRoute("/_authenticated")({
-  ssr: false,
-  beforeLoad: async () => {
-    // getSession is safer for offline as it doesn't always hit the server
-    const { data } = await supabase.auth.getSession();
-    const user = data.session?.user;
+export default function AuthGuard({ children }: { children: ReactNode }) {
+  const [loading, setLoading] = useState(true);
+  const [authenticated, setAuthenticated] = useState(false);
 
-    if (!user) {
-      // If we are truly offline and have no session, we can't do much
-      // but let's try to not hang.
-      if (typeof navigator !== 'undefined' && !navigator.onLine) {
-        return { user: null, isOffline: true };
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      const user = data.session?.user;
+      if (!user) {
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          setLoading(false);
+          return;
+        }
+        window.location.href = "/auth";
+        return;
       }
-      throw redirect({ to: "/auth" });
-    }
-    return { user };
-  },
-  component: () => <Outlet />,
-  pendingComponent: () => (
-    <div className="flex h-[400px] items-center justify-center">
-      <div className="size-8 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+      setAuthenticated(true);
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex h-[400px] items-center justify-center">
+        <div className="size-8 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!authenticated) return null;
+
+  return (
+    <div className="flex min-h-screen w-full bg-background text-foreground">
+      <Sidebar />
+      <main className="flex-1 min-w-0">
+        {children}
+        <OfflineSync />
+      </main>
     </div>
-  ),
-});
+  );
+}

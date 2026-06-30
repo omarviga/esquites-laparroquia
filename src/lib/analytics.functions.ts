@@ -1,6 +1,3 @@
-
-import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { supabase } from "@/integrations/supabase/client";
 import { startOfDay, endOfDay, subDays, format } from "date-fns";
 
@@ -59,7 +56,7 @@ export const analyticsApi = {
         const { data, error } = await supabase
             .from("sale_items")
             .select("product_name, quantity, total")
-            .limit(100); // In a real app we'd filter by date and sum in SQL
+            .limit(100);
 
         if (error) throw error;
 

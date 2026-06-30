@@ -1,4 +1,3 @@
-import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { ShoppingCart, History, LayoutDashboard, Box, QrCode, Settings, LogOut, Wallet, Users, ChefHat, Receipt, Package } from "lucide-react";
 import { Logo } from "./Logo";
 import { ThemeToggle } from "./ThemeToggle";
@@ -21,8 +20,7 @@ const NAV = [
 ];
 
 export function Sidebar() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const navigate = useNavigate();
+  const pathname = window.location.pathname;
   const { user, roles, fullName } = useAuth();
 
   // Pending kitchen orders count
@@ -48,7 +46,7 @@ export function Sidebar() {
   const onLogout = async () => {
     await supabase.auth.signOut();
     toast.success("Sesión cerrada");
-    navigate({ to: "/auth", replace: true });
+    window.location.href = "/auth";
   };
 
   return (
@@ -67,9 +65,10 @@ export function Sidebar() {
         {visible.map(({ to, label, icon: Icon, badge }) => {
           const active = pathname.startsWith(to);
           return (
-            <Link
+            <a
               key={to}
-              to={to}
+              href={to}
+              onClick={(e) => { e.preventDefault(); window.location.href = to; }}
               className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-all relative ${
                 active
                   ? "bg-linear-to-r from-gold/20 to-transparent text-foreground gold-border"
@@ -83,7 +82,7 @@ export function Sidebar() {
                   {kdsCount}
                 </span>
               )}
-            </Link>
+            </a>
           );
         })}
       </nav>

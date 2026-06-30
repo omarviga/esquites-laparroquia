@@ -10,7 +10,6 @@ import {
   AlarmClock,
   Banknote,
 } from "lucide-react";
-import { useServerFn } from "@tanstack/react-start";
 import {
   createTerminalPayment,
   checkTerminalPaymentStatus,
@@ -37,8 +36,8 @@ export function PaymentTerminalDialog({
   onOpenChange: (open: boolean) => void;
   onPaid: () => void;
 }) {
-  const createPayment = useServerFn(createTerminalPayment);
-  const checkPayment = useServerFn(checkTerminalPaymentStatus);
+  const createPayment = createTerminalPayment;
+  const checkPayment = checkTerminalPaymentStatus;
   const [state, setState] = useState<"connecting" | "waiting" | "approved" | "rejected" | "error">("connecting");
   const [terminalId, setTerminalId] = useState("");
   const [cardInfo, setCardInfo] = useState<{ brand?: string; lastFour?: string }>({});

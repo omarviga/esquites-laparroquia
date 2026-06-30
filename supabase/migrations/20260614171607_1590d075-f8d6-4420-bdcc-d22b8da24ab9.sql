@@ -147,14 +147,20 @@ CREATE POLICY "cash_register_update_own_or_admin" ON public.cash_register
   USING (user_id = auth.uid() OR public.has_role(auth.uid(), 'admin'))
   WITH CHECK (user_id = auth.uid() OR public.has_role(auth.uid(), 'admin'));
 
--- Transform expenses → cash_movements (entrada/salida)
-ALTER TABLE public.expenses RENAME TO cash_movements;
+-- Transform expenses → cash_movements (safe: only if expenses table exists)
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='expenses') THEN
+    ALTER TABLE public.expenses RENAME TO cash_movements;
+  END IF;
+END $$;
 ALTER TABLE public.cash_movements
   ADD COLUMN IF NOT EXISTS type TEXT NOT NULL DEFAULT 'salida',
   ADD COLUMN IF NOT EXISTS cash_register_id UUID REFERENCES public.cash_register(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS payment_method TEXT DEFAULT 'efectivo';
 
+ALTER TABLE public.cash_movements
+  DROP CONSTRAINT IF EXISTS cash_movements_type_chk;
 ALTER TABLE public.cash_movements
   ADD CONSTRAINT cash_movements_type_chk CHECK (type IN ('entrada', 'salida'));
 

@@ -1,13 +1,11 @@
-import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { getAuthContext } from "./auth.helper";
 
-export const getSettings = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    const { data } = await context.supabase.from("settings").select("*").limit(1).maybeSingle();
-    return data;
-  });
+export const getSettings = async () => {
+  const { supabase } = await getAuthContext();
+  const { data } = await supabase.from("settings").select("*").limit(1).maybeSingle();
+  return data;
+};
 
 const updateInput = z.object({
   business_name: z.string().max(255).optional(),
@@ -33,19 +31,17 @@ const updateInput = z.object({
   zettle_api_key: z.string().optional().nullable(),
 });
 
-export const updateSettings = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
-    if (!isAdmin) throw new Error("Solo admin puede modificar configuración.");
-    const { data: existing } = await supabase.from("settings").select("id").limit(1).maybeSingle();
-    if (existing) {
-      const { error } = await supabase.from("settings").update(data).eq("id", existing.id);
-      if (error) throw new Error(error.message);
-    } else {
-      const { error } = await supabase.from("settings").insert(data);
-      if (error) throw new Error(error.message);
-    }
-    return { ok: true };
-  });
+export const updateSettings = async (data: z.infer<typeof updateInput>) => {
+  const { supabase, userId } = await getAuthContext();
+  const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: userId, _role: "admin" });
+  if (!isAdmin) throw new Error("Solo admin puede modificar configuración.");
+  const { data: existing } = await supabase.from("settings").select("id").limit(1).maybeSingle();
+  if (existing) {
+    const { error } = await supabase.from("settings").update(data).eq("id", existing.id);
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabase.from("settings").insert(data);
+    if (error) throw new Error(error.message);
+  }
+  return { ok: true };
+};

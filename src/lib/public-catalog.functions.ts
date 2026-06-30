@@ -1,14 +1,16 @@
-import { createServerFn } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 
 function publicClient() {
-  return createClient<Database>(process.env.SUPABASE_URL!, process.env.SUPABASE_PUBLISHABLE_KEY!, {
+  const url = import.meta.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY;
+  return createClient<Database>(url || "", key || "", {
     auth: { storage: undefined, persistSession: false, autoRefreshToken: false },
   });
 }
 
-export const getPublicCatalog = createServerFn({ method: "GET" }).handler(async () => {
+// SPA-compatible: calls Supabase directly without SSR
+export async function getPublicCatalog() {
   const supabase = publicClient();
   const [{ data: categories }, { data: products }] = await Promise.all([
     supabase.from("categories").select("id, name, icon").order("name"),
@@ -20,12 +22,12 @@ export const getPublicCatalog = createServerFn({ method: "GET" }).handler(async 
       .order("name"),
   ]);
   return { categories: categories ?? [], products: products ?? [] };
-});
+}
 
-export const getPublicSettings = createServerFn({ method: "GET" }).handler(async () => {
-  // settings table is admin-only; we surface only safe public fields via service role.
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  const { data } = await supabaseAdmin
+// SPA-compatible: calls Supabase directly without SSR
+export async function getPublicSettings() {
+  const supabase = publicClient();
+  const { data } = await supabase
     .from("settings")
     .select("business_name, slogan, address, phone, whatsapp_number, footer_message")
     .limit(1)
@@ -38,4 +40,4 @@ export const getPublicSettings = createServerFn({ method: "GET" }).handler(async
     whatsapp_number: null,
     footer_message: null,
   };
-});
+}

@@ -1,7 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
 import { ChevronDown, Flame, MapPin, Clock, Phone, Sparkles, ShoppingBag, Instagram, Facebook, Plus, ArrowUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,19 +13,6 @@ import heroEsquite from "@/assets/hero-esquite.jpg";
 import dishLokos from "@/assets/dish-lokos.jpg";
 import dishUchepos from "@/assets/dish-uchepos.jpg";
 import dishMaruchan from "@/assets/dish-maruchan.jpg";
-
-export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title: "Esquites La Parroquia · El sabor que se antoja" },
-      { name: "description", content: "Menú digital de Esquites La Parroquia en Acámbaro, Gto. Elotes, lokos, uchepos, maruchan y más. Arma tu antojo y pásate a probarlos." },
-      { property: "og:title", content: "Esquites La Parroquia · El sabor que se antoja" },
-      { property: "og:description", content: "Arma tu antojo y descubre nuestro menú: elotes, lokos, uchepos y más." },
-      { property: "og:image", content: "/__l5e/og-esquites.jpg" },
-    ],
-  }),
-  component: LandingPage,
-});
 
 const SECTION_META: Record<string, { title: string; tag: string; image?: string }> = {
   elote: { title: "Los Monarcas", tag: "Elotes en todas sus formas", image: heroEsquite },
@@ -54,11 +39,9 @@ const FORMATS = [
 const FRITURAS = ["Takis", "Doritos", "Tostitos", "Ruffles", "Cheetos", "Churros"];
 const TOPPINGS = ["Queso", "Crema", "Mayonesa", "Cacahuate japonés", "Chiles en vinagre", "Salsa Valentina", "Limón"];
 
-function LandingPage() {
-  const getCatalog = useServerFn(getPublicCatalog);
-  const getSettingsFn = useServerFn(getPublicSettings);
-  const catalogQ = useQuery({ queryKey: ["public-catalog"], queryFn: () => getCatalog() });
-  const settingsQ = useQuery({ queryKey: ["public-settings"], queryFn: () => getSettingsFn() });
+export default function LandingPage() {
+  const catalogQ = useQuery({ queryKey: ["public-catalog"], queryFn: getPublicCatalog });
+  const settingsQ = useQuery({ queryKey: ["public-settings"], queryFn: getPublicSettings });
 
   const categories = catalogQ.data?.categories ?? [];
   const products = catalogQ.data?.products ?? [];
@@ -361,7 +344,7 @@ function LandingPage() {
           <div className="flex items-center gap-3">
             <a href="https://instagram.com/esquiteslaparroquia" target="_blank" rel="noopener" aria-label="Instagram" className="p-2 rounded-full border border-border hover:border-gold/40 transition"><Instagram className="size-4" /></a>
             <a href="https://facebook.com/esquiteslaparroquia" target="_blank" rel="noopener" aria-label="Facebook" className="p-2 rounded-full border border-border hover:border-gold/40 transition"><Facebook className="size-4" /></a>
-            <Link to="/auth" className="text-xs text-muted-foreground hover:text-gold transition ml-3">Acceso staff</Link>
+            <a href="/auth" className="text-xs text-muted-foreground hover:text-gold transition ml-3">Acceso staff</a>
           </div>
         </div>
       </footer>

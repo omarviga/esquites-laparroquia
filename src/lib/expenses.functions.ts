@@ -1,6 +1,5 @@
-import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { getAuthContext } from "./auth.helper";
 
 // ─── Input Schemas ───
 
@@ -48,100 +47,92 @@ export type ExpenseSummary = {
   byMonth: { month: string; total: number }[];
 };
 
-// ─── Server Functions ───
+// ─── Functions ───
 
-export const createExpense = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data, context }) => {
-    const { supabase, userId } = context;
-    const { error } = await supabase.from("expenses").insert({
-      user_id: userId,
-      amount: data.amount,
-      description: data.description || null,
-      category: data.category,
-      supplier: data.supplier || null,
-      expense_date: data.expenseDate,
-      payment_method: data.paymentMethod,
-      photo_url: data.photoUrl || null,
-      ocr_text: data.ocrText || null,
-    } as any);
-    if (error) throw new Error(error.message);
-    return { ok: true };
-  });
+export const createExpense = async (data: z.infer<typeof createExpenseInput>) => {
+  const { supabase, userId } = await getAuthContext();
+  const { error } = await supabase.from("expenses").insert({
+    user_id: userId,
+    amount: data.amount,
+    description: data.description || null,
+    category: data.category,
+    supplier: data.supplier || null,
+    expense_date: data.expenseDate,
+    payment_method: data.paymentMethod,
+    photo_url: data.photoUrl || null,
+    ocr_text: data.ocrText || null,
+  } as any);
+  if (error) throw new Error(error.message);
+  return { ok: true };
+};
 
-export const listExpenses = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    const { dateFrom, dateTo, category, page, pageSize } = data;
-    const from = (page - 1) * pageSize;
-    const to = from + pageSize - 1;
+export const listExpenses = async (data: z.infer<typeof listExpensesInput>) => {
+  const { supabase } = await getAuthContext();
+  const { dateFrom, dateTo, category, page, pageSize } = data;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
 
-    let query = supabase
-      .from("expenses")
-      .select("*", { count: "exact" })
-      .order("expense_date", { ascending: false })
-      .range(from, to);
+  let query = supabase
+    .from("expenses")
+    .select("*", { count: "exact" })
+    .order("expense_date", { ascending: false })
+    .range(from, to);
 
-    if (dateFrom) query = query.gte("expense_date", dateFrom);
-    if (dateTo) query = query.lte("expense_date", dateTo);
-    if (category) query = query.eq("category", category);
+  if (dateFrom) query = query.gte("expense_date", dateFrom);
+  if (dateTo) query = query.lte("expense_date", dateTo);
+  if (category) query = query.eq("category", category);
 
-    const { data: expenses, count, error } = await query;
-    if (error) throw new Error(error.message);
+  const { data: expenses, count, error } = await query;
+  if (error) throw new Error(error.message);
 
-    return { expenses: (expenses ?? []) as Expense[], total: count ?? 0, page, pageSize };
-  });
+  return { expenses: (expenses ?? []) as Expense[], total: count ?? 0, page, pageSize };
+};
 
-export const deleteExpense = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    const { error } = await supabase.from("expenses").delete().eq("id", data.id);
-    if (error) throw new Error(error.message);
-    return { ok: true };
-  });
+export const deleteExpense = async (data: z.infer<typeof deleteExpenseInput>) => {
+  const { supabase } = await getAuthContext();
+  const { error } = await supabase.from("expenses").delete().eq("id", data.id);
+  if (error) throw new Error(error.message);
+  return { ok: true };
+};
 
-export const getExpenseSummary = createServerFn({ method: "GET" })
-  .middleware([requireSupabaseAuth])
-  .handler(async ({ data, context }) => {
-    const { supabase } = context;
-    const { dateFrom, dateTo } = data;
+export const getExpenseSummary = async (data: { dateFrom?: string | null; dateTo?: string | null }) => {
+  const { supabase } = await getAuthContext();
+  const { dateFrom, dateTo } = data;
 
-    let query = supabase.from("expenses").select("amount, category, expense_date");
-    if (dateFrom) query = query.gte("expense_date", dateFrom);
-    if (dateTo) query = query.lte("expense_date", dateTo);
+  let query = supabase.from("expenses").select("amount, category, expense_date");
+  if (dateFrom) query = query.gte("expense_date", dateFrom);
+  if (dateTo) query = query.lte("expense_date", dateTo);
 
-    const { data: expenses, error } = await query;
-    if (error) throw new Error(error.message);
+  const { data: expenses, error } = await query;
+  if (error) throw new Error(error.message);
 
-    const all = expenses ?? [];
-    const total = all.reduce((s, e) => s + Number((e as any).amount), 0);
+  const all = expenses ?? [];
+  const total = all.reduce((s, e) => s + Number((e as any).amount), 0);
 
-    // By category
-    const catMap: Record<string, { total: number; count: number }> = {};
-    for (const e of all) {
-      const cat = (e as any).category || "otros";
-      if (!catMap[cat]) catMap[cat] = { total: 0, count: 0 };
-      catMap[cat].total += Number((e as any).amount);
-      catMap[cat].count += 1;
-    }
+  // By category
+  const catMap: Record<string, { total: number; count: number }> = {};
+  for (const e of all) {
+    const cat = (e as any).category || "otros";
+    if (!catMap[cat]) catMap[cat] = { total: 0, count: 0 };
+    catMap[cat].total += Number((e as any).amount);
+    catMap[cat].count += 1;
+  }
 
-    // By month
-    const monthMap: Record<string, number> = {};
-    for (const e of all) {
-      const m = ((e as any).expense_date as string).slice(0, 7);
-      monthMap[m] = (monthMap[m] || 0) + Number((e as any).amount);
-    }
+  // By month
+  const monthMap: Record<string, number> = {};
+  for (const e of all) {
+    const m = ((e as any).expense_date as string).slice(0, 7);
+    monthMap[m] = (monthMap[m] || 0) + Number((e as any).amount);
+  }
 
-    return {
-      total,
-      count: all.length,
-      byCategory: Object.entries(catMap)
-        .map(([category, val]) => ({ category, ...val }))
-        .sort((a, b) => b.total - a.total),
-      byMonth: Object.entries(monthMap)
-        .map(([month, total]) => ({ month, total }))
-        .sort((a, b) => a.month.localeCompare(b.month)),
-    } as ExpenseSummary;
-  });
+  return {
+    total,
+    count: all.length,
+    byCategory: Object.entries(catMap)
+      .map(([category, val]) => ({ category, ...val }))
+      .sort((a, b) => b.total - a.total),
+    byMonth: Object.entries(monthMap)
+      .map(([month, total]) => ({ month, total }))
+      .sort((a, b) => a.month.localeCompare(b.month)),
+  } as ExpenseSummary;
+};

@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useRef, useCallback } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -67,12 +66,8 @@ const CATEGORIES = [
 const catLabel = (id: string) => CATEGORIES.find((c) => c.id === id)?.label ?? id;
 const catIcon = (id: string) => CATEGORIES.find((c) => c.id === id)?.icon ?? "📌";
 
-export const Route = createFileRoute("/_authenticated/gastos")({
-  head: () => ({ meta: [{ title: "Gastos · Esquites La Parroquia" }] }),
-  component: GastosPage,
-});
-
-function GastosPage() {
+// Route: C:\Users\oviey\esquites\src\routes\_authenticated\gastos.tsx — converted to SPA
+export default function GastosPage() {
   const qc = useQueryClient();
   const fnList = useServerFn(listExpenses);
   const fnSummary = useServerFn(getExpenseSummary);

@@ -1,7 +1,5 @@
-
 import { useEffect, useState, useCallback } from "react";
 import { Wifi, WifiOff, RefreshCw, CheckCircle2, AlertCircle, Trash2, Eye, ListFilter } from "lucide-react";
-import { useServerFn } from "@tanstack/react-start";
 import { saveSale } from "@/lib/sales.functions";
 import { toast } from "sonner";
 import {
@@ -29,7 +27,7 @@ export function OfflineSync() {
     const [isOnline, setIsOnline] = useState(true);
     const [syncing, setSyncing] = useState(false);
     const [buffer, setBuffer] = useState<any[]>([]);
-    const sSale = useServerFn(saveSale);
+    const sSale = saveSale;
 
     const loadBuffer = useCallback(() => {
         try {

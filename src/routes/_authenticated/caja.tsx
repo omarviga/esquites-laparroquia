@@ -1,4 +1,3 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
@@ -50,15 +49,11 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
-export const Route = createFileRoute("/_authenticated/caja")({
-  head: () => ({ meta: [{ title: "Caja · Esquites La Parroquia" }] }),
-  component: CajaPage,
-});
-
-function CajaPage() {
+// Route: C:\Users\oviey\esquites\src\routes\_authenticated\caja.tsx — converted to SPA
+export default function CajaPage() {
   const qc = useQueryClient();
-  const navigate = useNavigate();
-  const getCurrent = useServerFn(getCurrentRegister);
+  const goTo = (path) => { window.location.href = path; };
+const getCurrent = useServerFn(getCurrentRegister);
   const { data, isLoading } = useQuery({
     queryKey: ["cash-register-current"],
     queryFn: () => getCurrent(),
@@ -118,7 +113,7 @@ function CajaPage() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button onClick={() => navigate({ to: "/pos" })} variant="outline">
+          <Button onClick={() => goTo("/pos")} variant="outline">
             <ShoppingCart className="size-4 mr-1" /> Ir al POS
           </Button>
           <Button
@@ -644,9 +639,8 @@ function CloseCashDialog({
   const [closedDiff, setClosedDiff] = useState(0);
   const diff = real - expected;
 
-  const navigate = useNavigate();
-
-  const submit = async () => {
+  const goTo = (path) => { window.location.href = path; };
+const submit = async () => {
     setBusy(true);
     try {
       const res: any = await fn({

@@ -5,7 +5,6 @@ import { fmt } from "@/store/cart";
 import type { Sale } from "@/store/sales";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import { useServerFn } from "@tanstack/react-start";
 import { printSaleTicket } from "@/lib/printer.functions";
 import { buildTicketHash, printTicketBrowser } from "@/lib/utils";
 import { toast } from "sonner";
@@ -23,7 +22,7 @@ export function ReceiptDialog({
 }) {
   if (!sale) return null;
   const date = new Date(sale.createdAt);
-  const printThermal = useServerFn(printSaleTicket);
+  const printThermal = printSaleTicket;
   const [printing, setPrinting] = useState(false);
 
   const handleBrowserPrint = useCallback(() => {

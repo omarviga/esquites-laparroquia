@@ -12,7 +12,6 @@ import {
   BadgeCheck,
   Banknote,
 } from "lucide-react";
-import { useServerFn } from "@tanstack/react-start";
 import {
   createPaymentPreference,
   checkPaymentStatus,
@@ -38,8 +37,8 @@ export function PaymentQRDialog({
   onOpenChange: (open: boolean) => void;
   onPaid: () => void;
 }) {
-  const createPref = useServerFn(createPaymentPreference);
-  const checkStatus = useServerFn(checkPaymentStatus);
+  const createPref = createPaymentPreference;
+  const checkStatus = checkPaymentStatus;
   const [state, setState] = useState<PaymentState>("creating");
   const [initPoint, setInitPoint] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState("");
