@@ -1,4 +1,5 @@
 {
+<<<<<<< HEAD
   "buildCommand": "",
   "outputDirectory": "dist",
   "rewrites": [
@@ -7,4 +8,12 @@
       "destination": "/index.html"
     }
   ]
+=======
+    "rewrites": [
+        {
+            "source": "/(.*)",
+            "destination": "/"
+        }
+    ]
+>>>>>>> 4f6246bd598163fcd8e5ae2bb839e40c3e709a65
 }
