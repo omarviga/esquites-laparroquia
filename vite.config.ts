@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [
     tailwindcss(),
-    tanstackStart({ target: "cloudflare-module" }),
+    tanstackStart(),
     mode === "development" && componentTagger(),
   ].filter(Boolean),
   resolve: {
