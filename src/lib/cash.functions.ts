@@ -20,6 +20,7 @@ const moveInput = z.object({
 
 export const openCashRegister = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => openInput.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: existing } = await supabase
@@ -45,6 +46,7 @@ export const openCashRegister = createServerFn({ method: "POST" })
 
 export const closeCashRegister = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => closeInput.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: reg } = await supabase
@@ -80,6 +82,7 @@ export const closeCashRegister = createServerFn({ method: "POST" })
 
 export const addCashMovement = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => moveInput.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
     const { data: reg } = await supabase
@@ -159,6 +162,7 @@ export type CashCutDetail = {
 
 export const getCashCutDetail = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => cutDetailInput.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
 
@@ -173,7 +177,8 @@ export const getCashCutDetail = createServerFn({ method: "GET" })
     // Get cashier name
     const { data: profile } = reg.user_id
       ? await supabase.from("profiles").select("full_name").eq("id", reg.user_id).maybeSingle()
-      : { data: null };
+      : { data: null as { full_name: string | null } | null };
+
 
     // Get sales for this register
     const { data: sales } = await supabase
@@ -211,7 +216,7 @@ export const getCashCutDetail = createServerFn({ method: "GET" })
       id: reg.id,
       openedAt: reg.opened_at,
       closedAt: reg.closed_at,
-      cashierName: profile?.data?.full_name ?? "Cajero",
+      cashierName: profile?.full_name ?? "Cajero",
       openingAmount: Number(reg.opening_amount),
       openingBreakdown,
       closingBreakdown,

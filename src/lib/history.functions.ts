@@ -50,7 +50,8 @@ export type SaleHistoryRow = {
 
 export type SaleDetail = {
   id: string;
-  folio: number;
+  folio: string;
+
   created_at: string;
   total: number;
   subtotal: number;
@@ -86,6 +87,7 @@ export type SalesSummary = {
 
 export const getSalesHistory = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => historyInput.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const { page, pageSize, dateFrom, dateTo, paymentMethod, status, search, sortBy, sortOrder } =
@@ -165,6 +167,7 @@ export const getSalesHistory = createServerFn({ method: "GET" })
 
 export const getSaleDetail = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => detailInput.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
 
@@ -213,6 +216,7 @@ export const getSaleDetail = createServerFn({ method: "GET" })
 
 export const getSalesSummary = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => summaryInput.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase } = context;
     const { dateFrom, dateTo } = data;
@@ -270,6 +274,7 @@ export const getSalesSummary = createServerFn({ method: "GET" })
 
 export const cancelSaleFn = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => cancelInput.parse(d))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
 
