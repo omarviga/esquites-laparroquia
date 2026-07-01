@@ -42,10 +42,11 @@ export const updateSettings = createServerFn({ method: "POST" })
     if (!isAdmin) throw new Error("Solo admin puede modificar configuración.");
     const { data: existing } = await supabase.from("settings").select("id").limit(1).maybeSingle();
     if (existing) {
-      const { error } = await supabase.from("settings").update(data).eq("id", existing.id);
+      const { error } = await supabase.from("settings").update(data as any).eq("id", existing.id);
       if (error) throw new Error(error.message);
     } else {
-      const { error } = await supabase.from("settings").insert(data);
+      const { error } = await supabase.from("settings").insert(data as any);
+
       if (error) throw new Error(error.message);
     }
     return { ok: true };
