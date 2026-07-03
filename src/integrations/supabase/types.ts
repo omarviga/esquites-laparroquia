@@ -778,6 +778,27 @@ export type Database = {
         Args: { _register_id: string }
         Returns: Json
       }
+      get_print_settings: {
+        Args: never
+        Returns: {
+          address: string
+          auto_cut: boolean
+          auto_print: boolean
+          business_name: string
+          footer_message: string
+          open_drawer: boolean
+          phone: string
+          print_mode: string
+          printer_enabled: boolean
+          printer_ip: string
+          printer_port: number
+          printer_width: number
+          proxy_url: string
+          show_logo: boolean
+          slogan: string
+          tax: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
