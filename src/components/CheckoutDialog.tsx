@@ -35,12 +35,13 @@ export function CheckoutDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-card gold-border max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="font-display text-2xl">Cobrar venta</DialogTitle>
+      <DialogContent className="bg-card gold-border max-w-lg max-h-[92vh] p-0 gap-0 flex flex-col">
+        <DialogHeader className="p-4 pb-2 shrink-0">
+          <DialogTitle className="font-display text-xl sm:text-2xl">Cobrar venta</DialogTitle>
         </DialogHeader>
 
-        <div className="grid grid-cols-4 gap-2 my-2">
+        <div className="overflow-y-auto px-4 flex-1 min-h-0 space-y-3">
+        <div className="grid grid-cols-5 gap-2">
           {METHODS.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
