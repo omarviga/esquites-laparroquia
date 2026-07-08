@@ -668,6 +668,15 @@ function POSPage() {
         open={!!lastSale}
         onOpenChange={(b) => !b && setLastSale(null)}
       />
+      <DiscountDialog
+        open={discountOpen}
+        onOpenChange={setDiscountOpen}
+        subtotal={totals.subtotal}
+        currentDiscount={cart.discount}
+        onApply={(discount, reason, isCourtesy) => cart.setDiscount(discount, reason, isCourtesy)}
+        onClear={() => cart.clearDiscount()}
+      />
+
     </div>
   );
 }
