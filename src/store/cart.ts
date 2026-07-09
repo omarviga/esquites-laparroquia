@@ -40,6 +40,7 @@ export const useCart = create<CartState>((set) => ({
   isCourtesy: false,
   taxRate: 0,
   customerId: null,
+  kitchenNotes: "",
   addItem: (product, modifiers) =>
     set((s) => ({
       items: [
@@ -61,7 +62,8 @@ export const useCart = create<CartState>((set) => ({
   clearDiscount: () => set({ discount: 0, discountReason: "", isCourtesy: false }),
   setTaxRate: (n) => set({ taxRate: Math.max(0, n) }),
   setCustomerId: (id) => set({ customerId: id }),
-  clear: () => set({ items: [], discount: 0, discountReason: "", isCourtesy: false, customerId: null }),
+  setKitchenNotes: (notes) => set({ kitchenNotes: notes.slice(0, 200) }),
+  clear: () => set({ items: [], discount: 0, discountReason: "", isCourtesy: false, customerId: null, kitchenNotes: "" }),
 }));
 
 
