@@ -646,34 +646,21 @@ process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Rejection:', reason instanceof Error ? reason.message : reason);
 });
 
-// ─── Liberar puerto (sin depender de binarios externos) ────
-function killPort(port) {
-  if (process.platform === 'win32') return false;
-  try {
-    const hexPort = port.toString(16).padStart(4, '0').toUpperCase();
-    const tcp = fs.readFileSync('/proc/net/tcp', 'utf8');
-    for (const line of tcp.split('\n')) {
-      const m = line.match(/^\s*\d+:\s+([0-9A-F]+):([0-9A-F]+)\s+/);
-      if (!m) continue;
-      if (m[2] !== hexPort) continue;
-      const parts = line.trim().split(/\s+/);
-      const inode = parts[9];
-      if (!inode) continue;
-      const procDirs = fs.readdirSync('/proc').filter(d => /^\d+$/.test(d));
-      for (const pidStr of procDirs) {
-        try {
-          for (const fd of fs.readdirSync(`/proc/${pidStr}/fd`)) {
-            const link = fs.readlinkSync(`/proc/${pidStr}/fd/${fd}`);
-            if (link.includes(`socket:[${inode}]`)) {
-              process.kill(parseInt(pidStr), 'SIGKILL');
-              return true;
-            }
-          }
-        } catch {}
-      }
+// ─── Lock file (PID) para evitar duplicados ────────────────
+const LOCK_PATH = path.join(__dirname, 'server.lock');
+async function claimLock() {
+  if (fs.existsSync(LOCK_PATH)) {
+    const oldPid = parseInt(fs.readFileSync(LOCK_PATH, 'utf8'), 10);
+    if (oldPid > 0) {
+      try {
+        process.kill(oldPid, 0); // Checar si vive
+        console.log(`⚰️ Matando servidor anterior (PID ${oldPid})...`);
+        process.kill(oldPid, 'SIGTERM');
+        await new Promise(r => setTimeout(r, 1500)); // Esperar que libere el puerto
+      } catch {}
     }
-  } catch {}
-  return false;
+  }
+  fs.writeFileSync(LOCK_PATH, String(process.pid));
 }
 
 // ─── Start ──────────────────────────────────────────────────
@@ -681,26 +668,18 @@ function killPort(port) {
   try {
     await initSQL();
     initDB();
-    if (process.platform !== 'win32') {
-      killPort(PORT);
-      // Esperar que el boot script no reinicie antes que nosotros
-      await new Promise(r => setTimeout(r, 500));
-      // Volver a matar por si el boot script re-creó el proceso
-      killPort(PORT);
-    }
+    claimLock();
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`🌽 API Esquites La Parroquia corriendo en http://0.0.0.0:${PORT}`);
       console.log(`📦 Base de datos: ${DB_PATH}`);
     });
     server.on('error', (err) => {
-      if (err.code === 'EADDRINUSE' && process.platform !== 'win32') {
-        console.log(`⚠️ Puerto ${PORT} ocupado, liberando (intento 2)...`);
-        killPort(PORT);
-        setTimeout(() => { server.close(); process.exit(0); }, 3000);
+      if (err.code === 'EADDRINUSE') {
+        console.error(`💥 Puerto ${PORT} ocupado. Revisa el lock file (server.lock).`);
       } else {
         console.error('💥 Server error:', err.message);
-        process.exit(1);
       }
+      process.exit(1);
     });
   } catch (e) {
     console.error('💥 Startup error:', e.message);
