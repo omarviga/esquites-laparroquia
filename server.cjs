@@ -330,7 +330,7 @@ function crudRoutes(table, pk = 'id') {
   // POST (create)
   app.post(`/api/${table}`, async (req, res) => {
     try {
-      const result = runInsertSafe(table, req.body, pk);
+      const result = await runInsertSafe(table, req.body, pk);
       resJson(res, { ...req.body, lastID: result.lastID });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
@@ -338,7 +338,7 @@ function crudRoutes(table, pk = 'id') {
   // PUT (update)
   app.put(`/api/${table}/:id`, async (req, res) => {
     try {
-      const result = runUpdateSafe(table, req.body, pk, req.params.id);
+      const result = await runUpdateSafe(table, req.body, pk, req.params.id);
       resJson(res, { changes: result.changes });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
@@ -390,14 +390,23 @@ app.get('/api/sales/history', async (req, res) => {
     const countRow = get(`SELECT COUNT(*) as total FROM sales s${where}`, params);
     const total = countRow?.total || 0;
 
-    const sql = `SELECT s.*, COALESCE(p.name, '') as cashier_name FROM sales s
+    const sql = `SELECT s.*, COALESCE(p.full_name, '') as cashier_name,
+      c.name as customer_name
+      FROM sales s
       LEFT JOIN profiles p ON s.user_id = p.id
+      LEFT JOIN customers c ON s.customer_id = c.id
       ${where} ORDER BY ${col} ${dir} LIMIT ? OFFSET ?`;
     const rows = all(sql, [...params, limit, offset]);
 
     // Attach items to each sale
     for (const sale of rows) {
       sale.items = all(`SELECT * FROM sale_items WHERE sale_id = ?`, [sale.id]);
+      // Parse modifiers JSON if present
+      for (const item of sale.items) {
+        if (item.modifiers && typeof item.modifiers === 'string') {
+          try { item.modifiers = JSON.parse(item.modifiers); } catch {}
+        }
+      }
     }
     resJson(res, { sales: rows, total, page, pageSize: limit });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -440,6 +449,34 @@ app.get('/api/sales/summary', async (req, res) => {
       paymentBreakdown: paymentBreakdown || [],
       dailyTotals: dailyTotals || [],
     });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Save sale (custom handler to set created_at and cash_register_id)
+app.post('/api/sales', async (req, res) => {
+  try {
+    const data = { ...req.body };
+    if (!data.id) data.id = uuid();
+    if (!data.created_at) data.created_at = now();
+    const reg = get(`SELECT id FROM cash_register WHERE status = 'abierta' LIMIT 1`);
+    if (reg) data.cash_register_id = reg.id;
+    const result = runInsertSafe('sales', data);
+    resJson(res, { ...data, lastID: result.lastID });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Sale detail with items (overrides generic GET /api/sales/:id)
+app.get('/api/sales/:id', async (req, res) => {
+  try {
+    const sale = get(`SELECT s.*, COALESCE(p.full_name, '') as cashier_name, c.name as customer_name FROM sales s LEFT JOIN profiles p ON s.user_id = p.id LEFT JOIN customers c ON s.customer_id = c.id WHERE s.id = ?`, [req.params.id]);
+    if (!sale) return res.status(404).json({ error: 'Venta no encontrada' });
+    sale.items = all(`SELECT * FROM sale_items WHERE sale_id = ?`, [sale.id]);
+    for (const item of sale.items) {
+      if (item.modifiers && typeof item.modifiers === 'string') {
+        try { item.modifiers = JSON.parse(item.modifiers); } catch {}
+      }
+    }
+    resJson(res, sale);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
