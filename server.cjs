@@ -645,20 +645,18 @@ process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Rejection:', reason instanceof Error ? reason.message : reason);
 });
 
-// ─── Liberar puerto en Linux/Termux ─────────────────────────
-try {
-  const { execSync } = require('child_process');
-  // Solo en Linux/Unix mata el proceso en el puerto antes de arrancar
-  if (process.platform !== 'win32') {
-    execSync(`fuser -k ${PORT}/tcp 2>/dev/null`, { stdio: 'ignore' });
-  }
-} catch (_) {}
-
 // ─── Start ──────────────────────────────────────────────────
 (async () => {
   try {
     await initSQL();
     initDB();
+    // Liberar puerto en Linux/Termux (justo antes de listen para evitar race con boot script)
+    if (process.platform !== 'win32') {
+      try {
+        const { execSync } = require('child_process');
+        execSync(`fuser -k ${PORT}/tcp 2>/dev/null`, { stdio: 'ignore' });
+      } catch (_) {}
+    }
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`🌽 API Esquites La Parroquia corriendo en http://0.0.0.0:${PORT}`);
       console.log(`📦 Base de datos: ${DB_PATH}`);
