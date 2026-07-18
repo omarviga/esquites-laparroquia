@@ -778,7 +778,7 @@ function CloseCashDialog({
       const res: any = await closeCashRegister({
         data: { realAmount: real, breakdown, notes: notes || undefined },
       });
-      setClosedRegId(res.registerId);
+      setClosedRegId(res.id || res.registerId);
       setClosedDiff(res.difference ?? diff);
       toast.success(`Caja cerrada. Diferencia: ${fmt(res.difference ?? diff)}`);
     } catch (e: any) {

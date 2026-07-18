@@ -68,7 +68,8 @@ export const saveSale = createServerFn({ method: "POST" })
       kitchen_notes: data.kitchenNotes || null,
       kds_status: 'pendiente',
       status: 'completada',
-      cancelled: false,
+      cancelled: 0,
+      created_at: new Date().toISOString(),
     });
 
     for (const item of data.items) {

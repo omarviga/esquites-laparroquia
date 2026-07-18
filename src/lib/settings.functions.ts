@@ -5,7 +5,7 @@ import { localApi } from "./api/api-client";
 
 export const getSettings = createServerFn({ method: "GET" })
   .handler(async () => {
-    return localApi.get('/api/settings');
+    return localApi.get('/api/settings/default');
   });
 
 const updateInput = z.object({
@@ -37,10 +37,10 @@ const updateInput = z.object({
 export const updateSettings = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => updateInput.parse(d))
   .handler(async ({ data }) => {
-    return localApi.put('/api/settings', data);
+    return localApi.put('/api/settings/default', data);
   });
 
 export const getPrintSettings = createServerFn({ method: "GET" })
   .handler(async () => {
-    return localApi.get('/api/settings');
+    return localApi.get('/api/settings/default');
   });

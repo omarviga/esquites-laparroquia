@@ -19,6 +19,7 @@ import { PaymentQRDialog } from "@/components/PaymentQRDialog";
 import { PaymentTerminalDialog } from "@/components/PaymentTerminalDialog";
 import { ReceiptDialog } from "@/components/ReceiptDialog";
 import { saveSale } from "@/lib/sales.functions";
+import { checkRegisterOpen } from "@/lib/cash.functions";
 import { getSettings, getPrintSettings } from "@/lib/settings.functions";
 import { crmApi } from "@/lib/crm.functions";
 import { smartPrintTicket } from "@/lib/escpos";
@@ -179,6 +180,16 @@ function POSPage() {
   };
 
   const handleConfirm = async (method: PaymentMethod, received?: number, change?: number) => {
+    try {
+      const open = await checkRegisterOpen();
+      if (!open) {
+        toast.error("Primero abre la caja antes de vender");
+        return;
+      }
+    } catch {
+      toast.error("No se pudo verificar el estado de la caja");
+      return;
+    }
     if ((method === "tarjeta" || method === "digital") && hasTerminal) {
       const folio = nextFolio();
       const saleData = {

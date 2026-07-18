@@ -314,11 +314,14 @@ export interface CortePrintData {
   salesCard: number;
   salesTransfer: number;
   salesCount: number;
+  cashIn: number;
+  cashOut: number;
   expectedAmount: number;
   realAmount: number;
   difference: number;
   notes: string | null;
   topProducts: { name: string; quantity: number }[];
+  salesByHour: { hour: string; total: number; count: number }[];
   printedAt: string;
 }
 
@@ -343,6 +346,25 @@ export function printCorteBrowser(data: CortePrintData): void {
         .map(([den, qty]) =>
           `<div class="cr-row-sm"><span>$${parseFloat(den).toFixed(den.includes(".") ? 2 : 0)}</span><span>${qty}u = ${fmtCorte(parseFloat(den) * qty)}</span></div>`
         ).join("")
+    : "";
+
+  const hasMovements = data.cashIn > 0 || data.cashOut > 0;
+
+  const movementsHtml = hasMovements
+    ? `
+  <div class="cd"></div>
+  <div class="cl">MOVIMIENTOS</div>
+  <div class="cr"><span>Entradas</span><span>${fmtCorte(data.cashIn)}</span></div>
+  <div class="cr"><span>Salidas</span><span>-${fmtCorte(data.cashOut)}</span></div>`
+    : "";
+
+  const salesByHourHtml = data.salesByHour && data.salesByHour.length > 0
+    ? `
+  <div class="cd"></div>
+  <div class="cl">VENTAS POR HORA</div>
+  ${data.salesByHour.map(h =>
+    `<div class="cr-row-sm"><span>${escapeHtml(h.hour)}</span><span>${h.count}u · ${fmtCorte(h.total)}</span></div>`
+  ).join("")}`
     : "";
 
   const diffClass = diff === 0 ? "" : diff > 0 ? "color:#059669" : "color:#dc2626";
@@ -405,6 +427,9 @@ export function printCorteBrowser(data: CortePrintData): void {
   <div class="cl">MÁS VENDIDOS</div>
   ${topProductsHtml}
   ` : ""}
+
+  ${movementsHtml}
+  ${salesByHourHtml}
 
   <div class="cd"></div>
   <div class="cl">ARQUEO</div>

@@ -145,6 +145,36 @@ function CortePage() {
             </>
           )}
 
+          {/* Cash movements */}
+          {(data.cashIn > 0 || data.cashOut > 0) && (
+            <>
+              <div className="corte-divider" />
+              <h3 className="corte-label">MOVIMIENTOS</h3>
+              <div className="corte-row">
+                <span>Entradas</span>
+                <span>{fmt(data.cashIn)}</span>
+              </div>
+              <div className="corte-row">
+                <span>Salidas</span>
+                <span>-{fmt(data.cashOut)}</span>
+              </div>
+            </>
+          )}
+
+          {/* Sales by hour */}
+          {data.salesByHour && data.salesByHour.length > 0 && (
+            <>
+              <div className="corte-divider" />
+              <h3 className="corte-label">VENTAS POR HORA</h3>
+              {data.salesByHour.map((h, i) => (
+                <div key={i} className="corte-row text-sm">
+                  <span>{h.hour}</span>
+                  <span>{h.count}u · {fmt(h.total)}</span>
+                </div>
+              ))}
+            </>
+          )}
+
           <div className="corte-divider" />
 
           {/* Expected vs Real */}

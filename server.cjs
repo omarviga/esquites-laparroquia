@@ -200,12 +200,36 @@ function initDB() {
       INSERT OR IGNORE INTO settings (id) VALUES ('default');
     `);
     saveDB();
+    migrateSchema();
     console.log('✅ DB schema ready');
     cacheAllColumns();
     console.log('✅ Column cache ready');
   } catch (e) {
     console.error('Schema error:', e.message);
   }
+}
+
+// ─── Schema migration — add missing columns ────────────────
+function migrateSchema() {
+  const addCol = (table, colDef) => {
+    try { db.run(`ALTER TABLE ${table} ADD COLUMN ${colDef}`); } catch (e) {
+      // Error 1: duplicate column → already exists, safe to ignore
+    }
+  };
+  // Settings — add columns the client sends but may be missing from old schema
+  addCol('settings', 'rfc TEXT DEFAULT ""');
+  addCol('settings', 'whatsapp_number TEXT DEFAULT ""');
+  addCol('settings', 'auto_print INTEGER DEFAULT 0');
+  addCol('settings', 'logo_url TEXT DEFAULT ""');
+  addCol('settings', 'logo_data TEXT DEFAULT ""');
+  addCol('settings', 'payment_provider TEXT DEFAULT "none"');
+  addCol('settings', 'mp_device_id TEXT DEFAULT ""');
+  addCol('settings', 'zettle_api_key TEXT DEFAULT ""');
+  addCol('settings', 'tax REAL DEFAULT 0');
+  // Sales — ensure created_at is not null for sorting
+  addCol('sales', 'kitchen_notes TEXT DEFAULT ""');
+  addCol('sales', 'cancelled_by TEXT DEFAULT ""');
+  saveDB();
 }
 
 // ─── Column cache — populate at startup ────────────────────
@@ -326,51 +350,138 @@ function crudRoutes(table, pk = 'id') {
 // Sales history
 app.get('/api/sales/history', async (req, res) => {
   try {
-    let sql = `SELECT s.*, u.name as cashier_name FROM sales s
-      LEFT JOIN customers u ON s.user_id = u.id
-      WHERE s.cancelled = 0`;
+    let where = ' WHERE 1=1';
     const params = [];
-    if (req.query.date_from) { sql += ` AND s.created_at >= ?`; params.push(req.query.date_from); }
-    if (req.query.date_to) { sql += ` AND s.created_at <= ?`; params.push(req.query.date_to); }
-    if (req.query.payment_method) { sql += ` AND s.payment_method = ?`; params.push(req.query.payment_method); }
-    if (req.query.folio) { sql += ` AND s.folio LIKE ?`; params.push(`%${req.query.folio}%`); }
-    sql += ` ORDER BY s.created_at DESC`;
-    if (req.query.limit) { sql += ` LIMIT ?`; params.push(Number(req.query.limit)); }
-    const rows = all(sql, params);
+
+    const dateFrom = req.query.dateFrom || req.query.date_from;
+    const dateTo = req.query.dateTo || req.query.date_to;
+    const paymentMethod = req.query.paymentMethod || req.query.payment_method;
+    const folioSearch = req.query.search || req.query.folio;
+    const status = req.query.status;
+    const sortBy = req.query.sortBy || 'created_at';
+    const sortOrder = req.query.sortOrder || 'desc';
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+    const offset = (page - 1) * limit;
+
+    if (status === 'cancelled') {
+      where += ' AND s.cancelled = 1';
+    } else if (status === 'active') {
+      where += ' AND s.cancelled = 0';
+    }
+    // Default: no filter on cancelled
+
+    if (dateFrom) { where += ' AND s.created_at >= ?'; params.push(dateFrom); }
+    if (dateTo) { where += ' AND s.created_at <= ?'; params.push(dateTo + 'T23:59:59.999Z'); }
+    if (paymentMethod) { where += ' AND s.payment_method = ?'; params.push(paymentMethod); }
+    if (folioSearch) { where += ' AND (s.folio LIKE ? OR s.cashier LIKE ?)'; params.push(`%${folioSearch}%`, `%${folioSearch}%`); }
+
+    const allowedSort = { created_at: 's.created_at', total: 's.total', folio: 's.folio' };
+    const col = allowedSort[sortBy] || 's.created_at';
+    const dir = sortOrder === 'asc' ? 'ASC' : 'DESC';
+
+    const countRow = get(`SELECT COUNT(*) as total FROM sales s${where}`, params);
+    const total = countRow?.total || 0;
+
+    const sql = `SELECT s.*, COALESCE(p.name, '') as cashier_name FROM sales s
+      LEFT JOIN profiles p ON s.user_id = p.id
+      ${where} ORDER BY ${col} ${dir} LIMIT ? OFFSET ?`;
+    const rows = all(sql, [...params, limit, offset]);
 
     // Attach items to each sale
     for (const sale of rows) {
       sale.items = all(`SELECT * FROM sale_items WHERE sale_id = ?`, [sale.id]);
     }
-    resJson(res, rows);
+    resJson(res, { sales: rows, total, page, pageSize: limit });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Sales summary
 app.get('/api/sales/summary', async (req, res) => {
   try {
-    let sql = `SELECT
-      COUNT(*) as total_sales,
-      COALESCE(SUM(total), 0) as total_amount,
-      COALESCE(SUM(CASE WHEN payment_method='efectivo' THEN total ELSE 0 END), 0) as total_cash,
-      COALESCE(SUM(CASE WHEN payment_method='tarjeta' THEN total ELSE 0 END), 0) as total_card,
-      COALESCE(SUM(CASE WHEN payment_method='transferencia' THEN total ELSE 0 END), 0) as total_transfer,
-      COALESCE(SUM(discount), 0) as total_discounts
-      FROM sales WHERE cancelled = 0`;
+    let where = ' WHERE 1=1';
     const params = [];
-    if (req.query.date_from) { sql += ` AND created_at >= ?`; params.push(req.query.date_from); }
-    if (req.query.date_to) { sql += ` AND created_at <= ?`; params.push(req.query.date_to); }
-    const row = get(sql, params);
-    resJson(res, row);
+
+    const dateFrom = req.query.dateFrom || req.query.date_from;
+    const dateTo = req.query.dateTo || req.query.date_to;
+
+    if (dateFrom) { where += ' AND created_at >= ?'; params.push(dateFrom); }
+    if (dateTo) { where += ' AND created_at <= ?'; params.push(dateTo + 'T23:59:59.999Z'); }
+
+    const totals = get(`SELECT
+      COUNT(*) as saleCount,
+      COALESCE(SUM(CASE WHEN cancelled=0 THEN total ELSE 0 END), 0) as totalSales,
+      COALESCE(SUM(CASE WHEN cancelled=1 THEN 1 ELSE 0 END), 0) as cancelledCount
+      FROM sales${where}`, params);
+
+    const saleCount = totals?.saleCount || 0;
+    const activeSales = saleCount - (totals?.cancelledCount || 0);
+
+    const paymentBreakdown = all(`SELECT
+      payment_method as method, COUNT(*) as count, COALESCE(SUM(total), 0) as total
+      FROM sales${where} AND cancelled=0 GROUP BY payment_method`, params);
+
+    const dailyTotals = all(`SELECT
+      DATE(created_at) as date, COUNT(*) as count, COALESCE(SUM(total), 0) as total
+      FROM sales${where} AND cancelled=0 GROUP BY DATE(created_at) ORDER BY date`, params);
+
+    resJson(res, {
+      totalSales: totals?.totalSales || 0,
+      saleCount: activeSales,
+      avgTicket: activeSales > 0 ? (totals?.totalSales || 0) / activeSales : 0,
+      cancelledCount: totals?.cancelledCount || 0,
+      paymentBreakdown: paymentBreakdown || [],
+      dailyTotals: dailyTotals || [],
+    });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // Cash endpoints
+app.get('/api/cash/status', async (req, res) => {
+  try {
+    const row = get(`SELECT id FROM cash_register WHERE status = 'abierta' LIMIT 1`);
+    resJson(res, { open: !!row, registerId: row?.id || null });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/cash/current', async (req, res) => {
+  try {
+    const register = get(`SELECT * FROM cash_register WHERE status = 'abierta' LIMIT 1`);
+    if (!register) return resJson(res, { register: null, summary: null, movements: [] });
+    const sales = all(`SELECT * FROM sales WHERE cancelled = 0 AND created_at >= ? AND created_at <= ?`,
+      [register.opened_at, now()]);
+    const movements = all(`SELECT * FROM cash_movements WHERE cash_register_id = ? ORDER BY created_at ASC`, [register.id]);
+    const cashIn = movements.filter(m => m.type === 'entrada').reduce((a, m) => a + m.amount, 0);
+    const cashOut = movements.filter(m => m.type === 'salida').reduce((a, m) => a + m.amount, 0);
+    const salesCash = sales.filter(s => s.payment_method === 'efectivo').reduce((a, s) => a + s.total, 0);
+    const salesCard = sales.filter(s => s.payment_method === 'tarjeta').reduce((a, s) => a + s.total, 0);
+    const salesTransfer = sales.filter(s => s.payment_method === 'transferencia').reduce((a, s) => a + s.total, 0);
+    const expectedCash = (register.opening_amount || 0) + salesCash + cashIn - cashOut;
+    resJson(res, {
+      register,
+      summary: {
+        sales_cash: salesCash, sales_card: salesCard, sales_transfer: salesTransfer,
+        sales_count: sales.length, cash_in: cashIn, cash_out: cashOut,
+        expected_cash: expectedCash,
+      },
+      movements,
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/cash/history', async (req, res) => {
+  try {
+    const rows = all(`SELECT * FROM cash_register WHERE status = 'cerrada' ORDER BY closed_at DESC`);
+    resJson(res, rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.post('/api/cash/open', async (req, res) => {
   try {
+    const openingAmount = req.body.openingAmount ?? req.body.amount ?? 0;
     const data = {
       id: uuid(), user_id: req.body.user_id || '',
-      opening_amount: req.body.amount || 0,
+      opening_amount: openingAmount,
       opening_breakdown: req.body.breakdown ? JSON.stringify(req.body.breakdown) : null,
       status: 'abierta', opened_at: now()
     };
@@ -381,34 +492,42 @@ app.post('/api/cash/open', async (req, res) => {
 
 app.post('/api/cash/close', async (req, res) => {
   try {
-    const { register_id, closing_amount, closing_breakdown, real_amount, notes } = req.body;
-    const register = get(`SELECT * FROM cash_register WHERE id = ?`, [register_id]);
-    if (!register) return res.status(404).json({ error: 'Caja no encontrada' });
+    const registerId = req.body.register_id || req.body.registerId;
+    const realAmount = req.body.realAmount ?? req.body.real_amount ?? 0;
+    const closingBreakdown = req.body.closing_breakdown || req.body.breakdown;
+    const notes = req.body.notes;
+    const q = registerId
+      ? get(`SELECT * FROM cash_register WHERE id = ?`, [registerId])
+      : get(`SELECT * FROM cash_register WHERE status = 'abierta' LIMIT 1`);
+    if (!q) return res.status(404).json({ error: 'Caja no encontrada' });
 
+    const register = q;
     const sales = all(`SELECT * FROM sales WHERE cancelled = 0 AND created_at >= ? AND created_at <= ?`,
       [register.opened_at, now()]);
     const total_sales_cash = sales.filter(s => s.payment_method === 'efectivo').reduce((a, s) => a + s.total, 0);
     const total_sales_card = sales.filter(s => s.payment_method === 'tarjeta').reduce((a, s) => a + s.total, 0);
     const total_sales_transfer = sales.filter(s => s.payment_method === 'transferencia').reduce((a, s) => a + s.total, 0);
 
-    const movements = all(`SELECT * FROM cash_movements WHERE cash_register_id = ?`, [register_id]);
+    const movements = all(`SELECT * FROM cash_movements WHERE cash_register_id = ?`, [register.id]);
     const cashIn = movements.filter(m => m.type === 'entrada').reduce((a, m) => a + m.amount, 0);
     const cashOut = movements.filter(m => m.type === 'salida').reduce((a, m) => a + m.amount, 0);
 
     const expected_amount = (register.opening_amount || 0) + total_sales_cash + cashIn - cashOut;
-    const diff = (real_amount || 0) - expected_amount;
+    const diff = (realAmount || 0) - expected_amount;
 
     run(`UPDATE cash_register SET
-      status='cerrada', closed_at=?, closing_amount=?, closing_breakdown=?,
+      status='cerrada', closed_at=?, closing_amount=?,
       expected_amount=?, real_amount=?, difference=?,
       total_sales_cash=?, total_sales_card=?, total_sales_transfer=?, notes=?
       WHERE id=?`, [
-      now(), closing_amount || 0,
-      closing_breakdown ? JSON.stringify(closing_breakdown) : null,
-      expected_amount, real_amount || 0, diff,
-      total_sales_cash, total_sales_card, total_sales_transfer, notes || null, register_id
+      now(), realAmount || 0,
+      expected_amount, realAmount || 0, diff,
+      total_sales_cash, total_sales_card, total_sales_transfer, notes || null, register.id
     ]);
-    resJson(res, { id: register_id, expected_amount, difference: diff, total_sales_cash, total_sales_card, total_sales_transfer });
+    if (closingBreakdown) {
+      run(`UPDATE cash_register SET closing_breakdown=? WHERE id=?`, [JSON.stringify(closingBreakdown), register.id]);
+    }
+    resJson(res, { id: register.id, expected_amount, difference: diff, total_sales_cash, total_sales_card, total_sales_transfer });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -437,8 +556,14 @@ app.get('/api/cash/cut/:id', async (req, res) => {
 
 app.post('/api/cash/movement', async (req, res) => {
   try {
-    const data = { id: uuid(), cash_register_id: req.body.cash_register_id, amount: req.body.amount,
-      type: req.body.type, concept: req.body.concept, payment_method: req.body.payment_method || 'efectivo',
+    let cashRegisterId = req.body.cash_register_id;
+    if (!cashRegisterId) {
+      const reg = get(`SELECT id FROM cash_register WHERE status = 'abierta' LIMIT 1`);
+      if (reg) cashRegisterId = reg.id;
+    }
+    const data = { id: uuid(), cash_register_id: cashRegisterId, amount: req.body.amount,
+      type: req.body.type, concept: req.body.concept,
+      payment_method: req.body.paymentMethod || req.body.payment_method || 'efectivo',
       notes: req.body.notes || null, user_id: req.body.user_id || '', created_at: now() };
     run(`INSERT INTO cash_movements (${Object.keys(data).join(',')}) VALUES (${Object.keys(data).map(()=>'?').join(',')})`, Object.values(data));
     resJson(res, data);
