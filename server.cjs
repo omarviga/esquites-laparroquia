@@ -645,6 +645,15 @@ process.on('unhandledRejection', (reason) => {
   console.error('💥 Unhandled Rejection:', reason instanceof Error ? reason.message : reason);
 });
 
+// ─── Liberar puerto en Linux/Termux ─────────────────────────
+try {
+  const { execSync } = require('child_process');
+  // Solo en Linux/Unix mata el proceso en el puerto antes de arrancar
+  if (process.platform !== 'win32') {
+    execSync(`fuser -k ${PORT}/tcp 2>/dev/null`, { stdio: 'ignore' });
+  }
+} catch (_) {}
+
 // ─── Start ──────────────────────────────────────────────────
 (async () => {
   try {
@@ -656,6 +665,10 @@ process.on('unhandledRejection', (reason) => {
     });
     server.on('error', (err) => {
       console.error('💥 Server error:', err.message);
+      if (err.code === 'EADDRINUSE') {
+        console.error('💡 El puerto ya estaba ocupado — ya debería estar libre. Reintenta en 3s...');
+        setTimeout(() => { server.close(); process.exit(0); }, 3000);
+      }
       process.exit(1);
     });
   } catch (e) {
