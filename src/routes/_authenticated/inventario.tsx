@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { inventoryApi, type InventoryItem } from "@/lib/inventory.functions";
@@ -30,6 +30,8 @@ import {
   Eye,
   CookingPot,
   Search,
+  Truck,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { fmt } from "@/store/cart";
@@ -79,6 +81,7 @@ function InventoryPage() {
 
 function InsumosTab() {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const { data: items, isLoading } = useQuery({
     queryKey: ["inventory-items"],
     queryFn: () => inventoryApi.getItems(),
@@ -121,12 +124,28 @@ function InsumosTab() {
             </Badge>
           )}
         </div>
-        <Button
-          onClick={() => setEditItem({ name: "", unit: "kg", stock: 0, min_stock: 0, cost_per_unit: 0 })}
-          className="bg-linear-to-r from-gold to-gold-soft text-primary-foreground font-bold"
-        >
-          <Plus className="size-4 mr-1" /> Nuevo Insumo
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => navigate({ to: "/compras" })}
+            variant="outline"
+            className="border-gold/30 text-gold hover:bg-gold/10"
+          >
+            <Truck className="size-4 mr-1" /> Compras
+          </Button>
+          <Button
+            onClick={() => navigate({ to: "/compras" })}
+            variant="outline"
+            className="border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
+          >
+            <Sparkles className="size-4 mr-1" /> Surtir
+          </Button>
+          <Button
+            onClick={() => setEditItem({ name: "", unit: "kg", stock: 0, min_stock: 0, cost_per_unit: 0 })}
+            className="bg-linear-to-r from-gold to-gold-soft text-primary-foreground font-bold"
+          >
+            <Plus className="size-4 mr-1" /> Nuevo Insumo
+          </Button>
+        </div>
       </header>
 
       <div className="bg-card gold-border rounded-2xl overflow-hidden">

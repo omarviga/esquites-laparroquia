@@ -413,38 +413,51 @@ function AddExpenseDialog({
       const Tesseract = TesseractModule.default;
       const imgUrl = URL.createObjectURL(photoFile);
 
-      const { data: { text } } = await Tesseract.recognize(imgUrl, "spa", {
-        logger: () => {},
-      });
-
-      URL.revokeObjectURL(imgUrl);
+      let text = '';
+      try {
+        const { data } = await Tesseract.recognize(imgUrl, "spa", {
+          logger: () => {},
+        });
+        text = data.text;
+      } finally {
+        URL.revokeObjectURL(imgUrl);
+      }
 
       const lines = text.split("\n").map((l: string) => l.trim()).filter(Boolean);
       toast.success(`OCR completado (${lines.length} líneas)`);
 
-      const cleanText = text
+      const clean = text
         .replace(/\s+/g, " ")
-        .replace(/[|¦]/g, "1")
-        .replace(/[OoO]/g, "0");
+        .replace(/[Oo]/g, "0")
+        .replace(/[|¦Il]/g, "1");
+
+      const parseAmount = (raw: string): number => {
+        let s = raw.replace(/[^\d,.]/g, '');
+        const lastDot = s.lastIndexOf('.');
+        const lastComma = s.lastIndexOf(',');
+        if (lastComma > lastDot) {
+          s = s.replace(/\./g, '').replace(',', '.');
+        } else {
+          s = s.replace(/,/g, '');
+        }
+        const v = parseFloat(s);
+        return v > 0 && v < 999999 ? v : 0;
+      };
 
       const amountPatterns = [
-        /(?:TOTAL|TOTAl|T0TAL|IMPORTE|MONTO|SUMA)\s*:?\s*\$?\s*([\d,]+(?:[.,]\d{2}))/i,
-        /\$?\s*([\d]{1,3}(?:[,]\d{3})*(?:[.,]\d{2}))\s*$/m,
-        /(?:PAGAR|PAGO|TOTAL)\s*\$?\s*([\d,]+(?:[.,]\d{2}))/i,
+        /(?:TOTAL|T0TAL|SUBTOTAL|IMPORTE|MONTO|SUMA)\s*:?\s*\$?\s*([\d,]+(?:[.,]\d{2}))/i,
+        /^\s*\$?\s*([\d,]+(?:[.,]\d{2}))\s*$/m,
+        /(?:PAGAR|PAGO|CAMBIO)\s*:?\s*\$?\s*([\d,]+(?:[.,]\d{2}))/i,
+        /(?:TOTAL)\s*:?\s*\$?\s*([\d,]+(?:[.,]\d{2}))/i,
         /([\d,]+(?:[.,]\d{2}))(?!.*[\d,]+(?:[.,]\d{2}))/,
       ];
 
       let parsedAmount = 0;
       for (const pattern of amountPatterns) {
-        const match = text.match(pattern);
+        const match = clean.match(pattern);
         if (match) {
-          const raw = match[1] || match[0];
-          const cleaned = raw.replace(/[^\d,.]/g, "").replace(/,/g, "");
-          const val = parseFloat(cleaned);
-          if (val > 0 && val < 999999) {
-            parsedAmount = val;
-            break;
-          }
+          parsedAmount = parseAmount(match[1] || match[0]);
+          if (parsedAmount > 0) break;
         }
       }
       if (parsedAmount > 0) setAmount(parsedAmount);
@@ -452,11 +465,15 @@ function AddExpenseDialog({
       const dateMatch = text.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
       if (dateMatch) {
         try {
-          let day = parseInt(dateMatch[1]);
-          let month = parseInt(dateMatch[2]);
+          let a = parseInt(dateMatch[1]);
+          let b = parseInt(dateMatch[2]);
           let year = parseInt(dateMatch[3]);
           if (year < 100) year += 2000;
-          if (day > 31) { [day, month] = [month, day]; }
+          let day: number, month: number;
+          if (a > 12 && a <= 31) { day = a; month = b; }
+          else if (b > 12 && b <= 31) { day = b; month = a; }
+          else if (a <= 12 && b <= 12) { month = Math.min(a, b); day = Math.max(a, b); }
+          else { day = a; month = b; }
           const d = new Date(year, month - 1, day);
           if (!isNaN(d.getTime())) setDate(format(d, "yyyy-MM-dd"));
         } catch {}
@@ -467,19 +484,22 @@ function AddExpenseDialog({
         "hora", "total", "cambio", "efectivo", "tarjeta", "iva", "subtotal",
         "producto", "cantidad", "precio", "importe", "articulo", "folio",
         "le", "atendio", "gracias", "visita", "www", ".com", ".mx",
+        "original", "copia", "recibo", "pago", "referencia", "caja",
       ];
       const nameLine = lines.find((l: string) =>
-        l.length > 5 &&
+        l.length > 8 &&
         !skipWords.some((w) => l.toLowerCase().includes(w)) &&
         !/^\d/.test(l) &&
         !/^\$/.test(l) &&
-        !/^[\s\-_=]+$/.test(l)
+        !/^[\s\-_=]+$/.test(l) &&
+        !/^[a-z]/.test(l)
       );
-      if (nameLine) setSupplier(nameLine.slice(0, 100));
+      if (nameLine) setSupplier(nameLine.slice(0, 100).replace(/[|¦]/g, 'I'));
 
       if (text.length > 5) {
         const descLines = lines
-          .filter((l: string) => l.length > 5 && !skipWords.some((w) => l.toLowerCase().includes(w)))
+          .filter((l: string) => l.length > 5 && l.length < 60 &&
+            !skipWords.some((w) => l.toLowerCase().includes(w)))
           .slice(0, 3);
         if (descLines.length > 0) setDescription(descLines.join(" · ").slice(0, 200));
       }

@@ -199,6 +199,26 @@ function initDB() {
         created_at TEXT, paid_at TEXT, user_id TEXT
       );
 
+      CREATE TABLE IF NOT EXISTS suppliers (
+        id TEXT PRIMARY KEY, name TEXT NOT NULL, contact_name TEXT,
+        phone TEXT, email TEXT, address TEXT, notes TEXT, created_at TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS purchase_orders (
+        id TEXT PRIMARY KEY, supplier_id TEXT, folio TEXT,
+        status TEXT DEFAULT 'borrador', notes TEXT,
+        total REAL DEFAULT 0, created_at TEXT, received_at TEXT,
+        FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS purchase_order_items (
+        id TEXT PRIMARY KEY, purchase_order_id TEXT NOT NULL,
+        inventory_item_id TEXT NOT NULL, quantity REAL DEFAULT 1,
+        unit_cost REAL DEFAULT 0, subtotal REAL DEFAULT 0,
+        FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id),
+        FOREIGN KEY (inventory_item_id) REFERENCES inventory_items(id)
+      );
+
       INSERT OR IGNORE INTO settings (id) VALUES ('default');
     `);
     saveDB();
@@ -821,6 +841,102 @@ app.post('/api/digital_menus/activate', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// ─── Purchase order custom endpoints ─────────────────────────
+app.post('/api/purchase-orders/suggest', async (req, res) => {
+  try {
+    const { daysBack = 7 } = req.body;
+    // Get top-selling products in the period
+    const topProducts = all(`
+      SELECT si.product_id, p.name as product_name, SUM(si.quantity) as total_qty
+      FROM sale_items si
+      JOIN sales s ON si.sale_id = s.id
+      JOIN products p ON si.product_id = p.id
+      WHERE s.created_at >= datetime('now', '-' || ? || ' days')
+        AND s.cancelled = 0 AND si.product_id IS NOT NULL
+      GROUP BY si.product_id ORDER BY total_qty DESC LIMIT 20
+    `, [String(daysBack)]);
+
+    // For each top product, get its recipe
+    const suggestions = [];
+    for (const prod of topProducts) {
+      const recipes = all(`
+        SELECT pr.*, ii.name as item_name, ii.stock, ii.min_stock, ii.unit, ii.cost_per_unit
+        FROM product_recipes pr
+        JOIN inventory_items ii ON pr.inventory_item_id = ii.id
+        WHERE pr.product_id = ?
+      `, [prod.product_id]);
+
+      for (const rcp of recipes) {
+        const neededQty = (rcp.quantity || 0) * (prod.total_qty || 0);
+        const stock = rcp.stock || 0;
+        const minStock = rcp.min_stock || 0;
+        const deficit = Math.max(0, neededQty - stock + minStock);
+
+        if (deficit > 0) {
+          const existing = suggestions.find(s => s.inventory_item_id === rcp.inventory_item_id);
+          if (existing) {
+            existing.suggested_qty = Math.max(existing.suggested_qty, deficit);
+            existing.reason += `, ${prod.product_name}`;
+          } else {
+            suggestions.push({
+              inventory_item_id: rcp.inventory_item_id,
+              item_name: rcp.item_name || rcp.inventory_item_id,
+              unit: rcp.unit || 'pza',
+              current_stock: stock,
+              min_stock: minStock,
+              suggested_qty: Math.ceil(deficit),
+              unit_cost: rcp.cost_per_unit || 0,
+              reason: prod.product_name,
+            });
+          }
+        }
+      }
+    }
+
+    // Also include items below min_stock
+    const lowItems = all(`SELECT * FROM inventory_items WHERE stock <= min_stock`);
+    for (const item of lowItems) {
+      if (!suggestions.find(s => s.inventory_item_id === item.id)) {
+        suggestions.push({
+          inventory_item_id: item.id,
+          item_name: item.name,
+          unit: item.unit,
+          current_stock: item.stock,
+          min_stock: item.min_stock,
+          suggested_qty: Math.ceil((item.min_stock || 0) * 2 - (item.stock || 0)),
+          unit_cost: item.cost_per_unit || 0,
+          reason: 'Stock bajo',
+        });
+      }
+    }
+
+    resJson(res, { suggestions, generated_at: now(), days_analyzed: daysBack });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/purchase-orders/:id/receive', async (req, res) => {
+  try {
+    const po = get(`SELECT * FROM purchase_orders WHERE id = ?`, [req.params.id]);
+    if (!po) return res.status(404).json({ error: 'Orden no encontrada' });
+    if (po.status === 'recibida') return res.status(400).json({ error: 'Ya fue recibida' });
+
+    const items = all(`SELECT * FROM purchase_order_items WHERE purchase_order_id = ?`, [po.id]);
+    for (const item of items) {
+      const inv = get(`SELECT * FROM inventory_items WHERE id = ?`, [item.inventory_item_id]);
+      if (inv) {
+        const stockBefore = inv.stock || 0;
+        const stockAfter = stockBefore + (item.quantity || 0);
+        run(`UPDATE inventory_items SET stock = ? WHERE id = ?`, [stockAfter, item.inventory_item_id]);
+        run(`INSERT INTO stock_movements (id, inventory_item_id, type, quantity, stock_before, stock_after, reference_type, reference_id, notes, created_at) VALUES (?, ?, 'entrada', ?, ?, ?, 'purchase_order', ?, ?, ?)`,
+          [uuid(), item.inventory_item_id, item.quantity, stockBefore, stockAfter, po.id, `Orden ${po.folio || po.id}`, now()]);
+      }
+    }
+
+    run(`UPDATE purchase_orders SET status = 'recibida', received_at = ? WHERE id = ?`, [now(), po.id]);
+    resJson(res, { ok: true, items_processed: items.length });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // ─── Generic CRUD routes (AFTER custom routes to avoid :id conflicts) ──
 crudRoutes('settings');
 crudRoutes('categories');
@@ -842,6 +958,9 @@ crudRoutes('expenses');
 crudRoutes('profiles');
 crudRoutes('user_roles');
 crudRoutes('settings_public');
+crudRoutes('suppliers');
+crudRoutes('purchase_orders');
+crudRoutes('purchase_order_items');
 
 // Static file serving for digital menus (PDF files stored in public/menus/)
 app.use('/menus', express.static(path.join(__dirname, 'public', 'menus')));

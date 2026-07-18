@@ -1,5 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { ShoppingCart, History, LayoutDashboard, Box, QrCode, Settings, LogOut, Wallet, Users, ChefHat, Receipt, Package, PanelLeftClose, PanelLeft } from "lucide-react";
+import { ShoppingCart, History, LayoutDashboard, Box, QrCode, Settings, LogOut, Wallet, Users, ChefHat, Receipt, Package, PanelLeftClose, PanelLeft, Truck } from "lucide-react";
 import { Logo } from "./Logo";
 import { ThemeToggle } from "./ThemeToggle";
 import { useAuth, hasRole } from "@/hooks/use-auth";
@@ -16,6 +16,7 @@ const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, roles: ["admin", "supervisor"] as const },
   { to: "/inventario", label: "Inventario", icon: Box, roles: ["admin", "supervisor"] as const },
   { to: "/productos", label: "Productos", icon: Package, roles: ["admin", "supervisor"] as const },
+  { to: "/compras", label: "Compras", icon: Truck, roles: ["admin", "supervisor"] as const },
   { to: "/gastos", label: "Gastos", icon: Receipt, roles: ["admin", "supervisor"] as const },
   { to: "/clientes", label: "Clientes", icon: Users, roles: ["admin", "supervisor"] as const },
   { to: "/configuracion", label: "Configuración", icon: Settings, roles: ["admin"] as const },
