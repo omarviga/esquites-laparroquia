@@ -16,8 +16,17 @@ fi
 # Iniciar servidor en segundo plano con reinicio automático
 while true; do
   echo "[$(date)] Iniciando servidor..." >> "$LOG_FILE"
+  START_TS=$(date +%s)
   node server.cjs >> "$LOG_FILE" 2>&1 &
-  echo $! > "$PID_FILE"
-  wait $!
+  PID=$!
+  echo $PID > "$PID_FILE"
+  wait $PID
+  DIFF=$(($(date +%s) - START_TS))
+  # Si el servidor duró menos de 5s (puerto ocupado, error), no reiniciar
+  if [ "$DIFF" -lt 5 ]; then
+    echo "[$(date)] Servidor falló en $DIFF segundos. No se reintenta." >> "$LOG_FILE"
+    break
+  fi
+  echo "[$(date)] Servidor cayó tras $DIFF segundos. Reintentando..." >> "$LOG_FILE"
   sleep 2
 done
