@@ -17,9 +17,7 @@ function saveDB() {
 }
 
 async function initSQL() {
-  const SQL = await initSqlJs({
-    locateFile: file => path.join(path.dirname(require.resolve('sql.js')), file)
-  });
+  const SQL = await initSqlJs();
   if (fs.existsSync(DB_PATH)) {
     const buffer = fs.readFileSync(DB_PATH);
     db = new SQL.Database(buffer);
@@ -662,6 +660,7 @@ process.on('unhandledRejection', (reason) => {
     });
   } catch (e) {
     console.error('💥 Startup error:', e.message);
+    if (e.stack) console.error(e.stack);
     process.exit(1);
   }
 })();
