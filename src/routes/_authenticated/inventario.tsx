@@ -99,10 +99,10 @@ function InsumosTab() {
   const [movementsItem, setMovementsItem] = useState<InventoryItem | null>(null);
   const [recipesItem, setRecipesItem] = useState<InventoryItem | null>(null);
 
-  const invalidate = () =>
-    qc.invalidateQueries({
-      queryKey: ["inventory-items", "inventory-low-stock"],
-    });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["inventory-items"] });
+    qc.invalidateQueries({ queryKey: ["inventory-low-stock"] });
+  };
 
   if (isLoading) {
     return (
