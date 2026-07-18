@@ -17,7 +17,9 @@ function saveDB() {
 }
 
 async function initSQL() {
-  const SQL = await initSqlJs();
+  const SQL = await initSqlJs({
+    locateFile: file => path.join(path.dirname(require.resolve('sql.js')), file)
+  });
   if (fs.existsSync(DB_PATH)) {
     const buffer = fs.readFileSync(DB_PATH);
     db = new SQL.Database(buffer);
@@ -637,12 +639,29 @@ crudRoutes('settings_public');
 // Static file serving for digital menus (PDF files stored in public/menus/)
 app.use('/menus', express.static(path.join(__dirname, 'public', 'menus')));
 
+// ─── Global error handlers ──────────────────────────────────
+process.on('uncaughtException', (err) => {
+  console.error('💥 Uncaught Exception:', err.message, err.stack);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('💥 Unhandled Rejection:', reason instanceof Error ? reason.message : reason);
+});
+
 // ─── Start ──────────────────────────────────────────────────
 (async () => {
-  await initSQL();
-  initDB();
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🌽 API Esquites La Parroquia corriendo en http://0.0.0.0:${PORT}`);
-    console.log(`📦 Base de datos: ${DB_PATH}`);
-  });
+  try {
+    await initSQL();
+    initDB();
+    const server = app.listen(PORT, '0.0.0.0', () => {
+      console.log(`🌽 API Esquites La Parroquia corriendo en http://0.0.0.0:${PORT}`);
+      console.log(`📦 Base de datos: ${DB_PATH}`);
+    });
+    server.on('error', (err) => {
+      console.error('💥 Server error:', err.message);
+      process.exit(1);
+    });
+  } catch (e) {
+    console.error('💥 Startup error:', e.message);
+    process.exit(1);
+  }
 })();
