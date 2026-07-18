@@ -91,8 +91,17 @@ export function ReceiptDialog({
           <div className="border-t border-dashed border-black/40 my-2" />
           <div className="space-y-0.5 text-xs">
             <div className="flex justify-between"><span>Subtotal</span><span>{fmt(sale.subtotal)}</span></div>
+            {(sale.discount ?? 0) > 0 && (
+              <>
+                <div className="flex justify-between text-success font-bold"><span>Descuento</span><span>-{fmt(sale.discount!)}</span></div>
+                {sale.discountReason && <div className="flex justify-between italic opacity-75"><span>Motivo:</span><span>{sale.discountReason}</span></div>}
+              </>
+            )}
             <div className="flex justify-between"><span>Impuestos</span><span>{fmt(sale.tax)}</span></div>
             <div className="flex justify-between text-base font-bold pt-1"><span>TOTAL</span><span>{fmt(sale.total)}</span></div>
+            {sale.isCourtesy && (
+              <div className="text-center font-black tracking-widest border border-dashed border-black py-0.5 mt-1 text-xs">*** CORTESÍA ***</div>
+            )}
             <div className="flex justify-between pt-1"><span>Pago:</span><span className="uppercase">{sale.payment}</span></div>
             {sale.received !== undefined && (
               <>

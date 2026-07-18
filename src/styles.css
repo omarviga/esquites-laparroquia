@@ -158,10 +158,10 @@
 
 .ticket {
   width: 100%;
-  padding: 0.3rem 0.75rem 1rem 0.75rem;
+  padding: 0.2rem 0.5rem 0.6rem 0.5rem;
   font-family: "Courier New", "Liberation Mono", "DejaVu Sans Mono", monospace;
-  font-size: 0.6875rem; /* 11px */
-  line-height: 1.35;
+  font-size: 0.6rem; /* 9.6px */
+  line-height: 1.3;
   color: #111;
   background: #fff;
   border-radius: 0.5rem;
@@ -169,69 +169,69 @@
 
 .ticket-header {
   text-align: center;
-  margin-bottom: 0.1rem;
+  margin-bottom: 0.05rem;
 }
 
 .ticket-logo {
   display: block;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2rem;
+  height: 2rem;
   object-fit: contain;
   margin: 0 auto;
 }
 
 .ticket-business {
   font-family: "Playfair Display", Georgia, serif;
-  font-size: 0.9375rem;
+  font-size: 0.75rem;
   font-weight: 800;
   color: #1a1a1a;
   margin: 0;
-  line-height: 1.15;
+  line-height: 1.1;
 }
 
 .ticket-slogan {
   font-family: "Playfair Display", Georgia, serif;
-  font-size: 0.6rem;
+  font-size: 0.5rem;
   font-style: italic;
   color: #555;
   margin: 0.0625rem 0 0;
 }
 
 .ticket-address {
-  font-size: 0.5625rem;
+  font-size: 0.45rem;
   color: #555;
   margin: 0.0625rem 0 0;
 }
 
 .ticket-phone {
-  font-size: 0.5625rem;
+  font-size: 0.45rem;
   color: #555;
   margin: 0;
 }
 
 .ticket-divider {
   border-top: 1px dashed #999;
-  margin: 0.35rem 0;
+  margin: 0.2rem 0;
 }
 
 .ticket-info {
-  font-size: 0.65rem;
-  line-height: 1.45;
+  font-size: 0.55rem;
+  line-height: 1.4;
 }
 
 .ticket-items {
-  font-size: 0.65rem;
+  font-size: 0.55rem;
 }
 
 .ticket-totals {
-  font-size: 0.65rem;
-  line-height: 1.45;
+  font-size: 0.55rem;
+  line-height: 1.4;
 }
 
 .ticket-footer {
   text-align: center;
-  margin-top: 0.125rem;
-  font-size: 0.6rem;
+  margin-top: 0.1rem;
+  font-size: 0.5rem;
 }
 
 /* Feed extra — blank space so paper advances past cutter */

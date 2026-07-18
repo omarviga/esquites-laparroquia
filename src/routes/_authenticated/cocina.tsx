@@ -36,7 +36,7 @@ type KdsItem = {
 
 type KdsOrder = {
   id: string;
-  folio: number;
+  folio: string;
   created_at: string;
   kds_status: string;
   kitchen_notes: string | null;
@@ -126,7 +126,7 @@ function KDSPage() {
   const { data: orders = [], isLoading } = useQuery<KdsOrder[]>({
     queryKey: ["kds-orders"],
     queryFn: async () => {
-      const data = await localApi.get<any[]>('/api/sales');
+      const data = await localApi.get<any[]>('/api/kds/orders');
       const filtered = (data ?? []).filter((o: any) => {
         const status = o.kds_status || "pendiente";
         if (status === "pendiente" || status === "preparando") return true;

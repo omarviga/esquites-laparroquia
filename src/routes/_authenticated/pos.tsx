@@ -667,6 +667,10 @@ function POSPage() {
                   tax: totals.tax,
                   total: totals.total,
                   paymentMethod: "digital",
+                  discount: cart.discount,
+                  discountReason: cart.discountReason,
+                  isCourtesy: cart.isCourtesy,
+                  kitchenNotes: cart.kitchenNotes,
                   items: cart.items.map(i => ({
                     name: i.product.name,
                     quantity: i.quantity,
@@ -719,6 +723,10 @@ function POSPage() {
                   tax: totals.tax,
                   total: totals.total,
                   paymentMethod: "tarjeta",
+                  discount: cart.discount,
+                  discountReason: cart.discountReason,
+                  isCourtesy: cart.isCourtesy,
+                  kitchenNotes: cart.kitchenNotes,
                   items: cart.items.map(i => ({
                     name: i.product.name,
                     quantity: i.quantity,

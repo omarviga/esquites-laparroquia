@@ -168,7 +168,9 @@ function initDB() {
 
       CREATE TABLE IF NOT EXISTS stock_movements (
         id TEXT PRIMARY KEY, inventory_item_id TEXT NOT NULL,
-        type TEXT NOT NULL, quantity REAL NOT NULL, notes TEXT,
+        type TEXT NOT NULL, quantity REAL NOT NULL,
+        stock_before REAL DEFAULT 0, stock_after REAL DEFAULT 0,
+        reference_type TEXT, reference_id TEXT, notes TEXT,
         created_at TEXT,
         FOREIGN KEY (inventory_item_id) REFERENCES inventory_items(id)
       );
@@ -216,6 +218,11 @@ function migrateSchema() {
       // Error 1: duplicate column → already exists, safe to ignore
     }
   };
+  // Stock movements — add columns that may be missing from old schema
+  addCol('stock_movements', 'stock_before REAL DEFAULT 0');
+  addCol('stock_movements', 'stock_after REAL DEFAULT 0');
+  addCol('stock_movements', 'reference_type TEXT');
+  addCol('stock_movements', 'reference_id TEXT');
   // Settings — add columns the client sends but may be missing from old schema
   addCol('settings', 'rfc TEXT DEFAULT ""');
   addCol('settings', 'whatsapp_number TEXT DEFAULT ""');
@@ -570,6 +577,27 @@ app.post('/api/cash/movement', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// KDS — orders with items and modifiers
+app.get('/api/kds/orders', async (req, res) => {
+  try {
+    const rows = all(`SELECT * FROM sales WHERE cancelled = 0 ORDER BY created_at DESC`);
+    const result = rows.map(r => {
+      const items = all(`SELECT * FROM sale_items WHERE sale_id = ?`, [r.id]);
+      return {
+        ...r,
+        sale_items: items.map(i => ({
+          ...i,
+          sale_item_modifiers: all(`SELECT modifier_name FROM sale_item_modifiers WHERE sale_item_id = ?`, [i.id]),
+        })),
+        customers: r.customer_id
+          ? get(`SELECT name FROM customers WHERE id = ?`, [r.customer_id]) || null
+          : null,
+      };
+    });
+    resJson(res, result);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 // Analytics
 app.get('/api/analytics/daily', async (req, res) => {
   try {
@@ -688,12 +716,25 @@ app.post('/api/inventory/adjust', async (req, res) => {
     const item = get(`SELECT * FROM inventory_items WHERE id = ?`, [inventory_item_id]);
     if (!item) return res.status(404).json({ error: 'Item not found' });
 
-    const newStock = type === 'entrada'
-      ? (item.stock || 0) + Number(quantity)
-      : (item.stock || 0) - Number(quantity);
-    run(`UPDATE inventory_items SET stock = ? WHERE id = ?`, [Math.max(0, newStock), inventory_item_id]);
+    const stockBefore = item.stock || 0;
+    let stockAfter = stockBefore;
+    let qty = Number(quantity);
 
-    const movement = { id: uuid(), inventory_item_id, type, quantity: Number(quantity),
+    if (type === 'entrada') {
+      stockAfter = stockBefore + Math.abs(qty);
+    } else if (type === 'salida') {
+      qty = -Math.abs(qty);
+      stockAfter = Math.max(0, stockBefore + qty);
+    } else { // ajuste
+      stockAfter = Math.max(0, qty);
+      qty = stockAfter - stockBefore;
+    }
+
+    run(`UPDATE inventory_items SET stock = ? WHERE id = ?`, [stockAfter, inventory_item_id]);
+
+    const movement = { id: uuid(), inventory_item_id, type, quantity: qty,
+      stock_before: stockBefore, stock_after: stockAfter,
+      reference_type: 'manual', reference_id: null,
       notes: notes || null, created_at: now() };
     run(`INSERT INTO stock_movements (${Object.keys(movement).join(',')}) VALUES (${Object.keys(movement).map(()=>'?').join(',')})`, Object.values(movement));
     resJson(res, movement);
@@ -702,17 +743,23 @@ app.post('/api/inventory/adjust', async (req, res) => {
 
 app.post('/api/inventory/deduct-sale', async (req, res) => {
   try {
-    const { items } = req.body; // [{product_id, quantity}]
+    const { items } = req.body; // [{productId, productName, quantity, saleId, folio}]
     for (const saleItem of items || []) {
-      const recipes = all(`SELECT * FROM product_recipes WHERE product_id = ?`, [saleItem.product_id]);
+      const recipes = all(`SELECT * FROM product_recipes WHERE product_id = ?`, [saleItem.productId]);
       for (const rcp of recipes) {
         const deductQty = (rcp.quantity || 0) * (saleItem.quantity || 1);
         const item = get(`SELECT * FROM inventory_items WHERE id = ?`, [rcp.inventory_item_id]);
         if (item) {
-          const newStock = Math.max(0, (item.stock || 0) - deductQty);
-          run(`UPDATE inventory_items SET stock = ? WHERE id = ?`, [newStock, rcp.inventory_item_id]);
-          run(`INSERT INTO stock_movements (id, inventory_item_id, type, quantity, notes, created_at) VALUES (?,?,?,?,?,?)`,
-            [uuid(), rcp.inventory_item_id, 'salida', deductQty, `Venta #${saleItem.product_id}`, now()]);
+          const stockBefore = item.stock || 0;
+          const stockAfter = Math.max(0, stockBefore - deductQty);
+          run(`UPDATE inventory_items SET stock = ? WHERE id = ?`, [stockAfter, rcp.inventory_item_id]);
+          const movement = { id: uuid(), inventory_item_id: rcp.inventory_item_id,
+            type: 'salida', quantity: deductQty,
+            stock_before: stockBefore, stock_after: stockAfter,
+            reference_type: 'sale', reference_id: saleItem.saleId || null,
+            notes: `Venta #${saleItem.folio || ''}: ${saleItem.productName || ''}`,
+            created_at: now() };
+          run(`INSERT INTO stock_movements (${Object.keys(movement).join(',')}) VALUES (${Object.keys(movement).map(()=>'?').join(',')})`, Object.values(movement));
         }
       }
     }

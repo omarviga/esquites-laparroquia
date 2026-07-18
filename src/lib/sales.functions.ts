@@ -129,5 +129,32 @@ const getSaleInput = z.object({ saleId: z.string() });
 export const getSaleForTicket = createServerFn({ method: "GET" })
   .inputValidator((d: unknown) => getSaleInput.parse(d))
   .handler(async ({ data }) => {
-    return localApi.get(`/api/sales/${data.saleId}`);
+    const sale: any = await localApi.get(`/api/sales/${data.saleId}`);
+    const items: any[] = await localApi.get(`/api/sale_items?sale_id=${sale.id}`);
+    return {
+      folio: sale.folio,
+      createdAt: sale.created_at,
+      cashier: sale.cashier || sale.user_id || '',
+      subtotal: sale.subtotal || 0,
+      tax: sale.tax || 0,
+      total: sale.total || 0,
+      paymentMethod: sale.payment_method || 'efectivo',
+      cashReceived: sale.cash_received,
+      changeAmount: sale.change_amount,
+      discount: sale.discount,
+      discountReason: sale.discount_reason,
+      isCourtesy: Boolean(sale.is_courtesy),
+      kitchenNotes: sale.kitchen_notes,
+      items: items.map((i: any) => ({
+        name: i.product_name,
+        quantity: i.quantity,
+        unitPrice: i.unit_price,
+        modifiers: i.modifiers ? (typeof i.modifiers === 'string' ? JSON.parse(i.modifiers) : i.modifiers) : [],
+      })),
+      businessName: 'Esquites La Parroquia',
+      slogan: '¡El sabor que nos une!',
+      address: 'Acámbaro, Gto.',
+      phone: '',
+      footerMessage: '¡Gracias por su compra!',
+    };
   });
