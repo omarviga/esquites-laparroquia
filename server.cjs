@@ -1,9 +1,11 @@
-// server.cjs — API REST + SQLite (sql.js) para Esquites La Parroquia
+// server.cjs — API REST + SQLite (sql.js) + Proxy ESC/POS integrado
 const express = require('express');
 const initSqlJs = require('sql.js');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
+const net = require('net');
 const { randomUUID } = require('crypto');
 
 const PORT = process.env.PORT || 3000;
@@ -1000,6 +1002,128 @@ async function claimLock() {
     const server = app.listen(PORT, '0.0.0.0', () => {
       console.log(`🌽 API Esquites La Parroquia corriendo en http://0.0.0.0:${PORT}`);
       console.log(`📦 Base de datos: ${DB_PATH}`);
+    });
+
+    // ─── Proxy ESC/POS integrado (mismo proceso, puerto 3128) ──────────
+    const PROXY_PORT = 3128;
+    const DEFAULT_PRINTER_IP = '192.168.1.101';
+    const DEFAULT_PRINTER_PORT = 9100;
+
+    function sendToPrinter(ip, port, data) {
+      return new Promise((resolve, reject) => {
+        const client = new net.Socket();
+        client.setTimeout(7000);
+        client.connect(port, ip, () => {
+          client.write(data, () => { client.end(); resolve(); });
+        });
+        client.on('error', (err) => {
+          client.destroy();
+          reject(new Error(`Error de conexión con impresora ${ip}:${port} — ${err.message}`));
+        });
+        client.on('timeout', () => {
+          client.destroy();
+          reject(new Error(`Timeout con impresora ${ip}:${port}`));
+        });
+      });
+    }
+
+    function testTicketBytes() {
+      const ESC = 0x1b, GS = 0x1d;
+      const bytes = [];
+      bytes.push(ESC, 0x40); // inicializar
+      bytes.push(ESC, 0x74, 0x00); // PC437
+      bytes.push(ESC, 0x61, 0x01); // centrar
+      for (const c of 'ESQUITES LA PARROQUIA\n') bytes.push(c.charCodeAt(0));
+      bytes.push(ESC, 0x61, 0x00);
+      bytes.push(0x0a);
+      for (const c of 'Ticket de prueba\n') bytes.push(c.charCodeAt(0));
+      for (const c of 'Impresión correcta!\n') bytes.push(c.charCodeAt(0));
+      bytes.push(0x0a, 0x0a, 0x0a);
+      bytes.push(GS, 0x56, 0x01); // corte
+      return Buffer.from(bytes);
+    }
+
+    const CORS_PROXY = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Private-Network': 'true',
+      'Access-Control-Max-Age': '86400',
+    };
+
+    function readBody(req) {
+      return new Promise((resolve, reject) => {
+        const chunks = [];
+        let size = 0;
+        req.on('data', (c) => {
+          size += c.length;
+          if (size > 1024 * 1024) { reject(new Error('Trabajo demasiado grande')); req.destroy(); return; }
+          chunks.push(c);
+        });
+        req.on('end', () => resolve(Buffer.concat(chunks)));
+        req.on('error', reject);
+      });
+    }
+
+    function jsonProxy(res, code, obj) {
+      res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', ...CORS_PROXY });
+      res.end(JSON.stringify(obj));
+    }
+
+    const proxyServer = http.createServer(async (req, res) => {
+      const url = new URL(req.url, `http://localhost:${PROXY_PORT}`);
+
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, CORS_PROXY);
+        res.end();
+        return;
+      }
+
+      if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/health')) {
+        jsonProxy(res, 200, { ok: true, service: 'escpos-proxy (integrado)', printerIp: DEFAULT_PRINTER_IP, printerPort: DEFAULT_PRINTER_PORT });
+        return;
+      }
+
+      const ip = url.searchParams.get('ip') || DEFAULT_PRINTER_IP;
+      const port = Number(url.searchParams.get('port') || DEFAULT_PRINTER_PORT);
+
+      if (req.method === 'POST' && url.pathname === '/print') {
+        try {
+          await sendToPrinter(ip, port, testTicketBytes());
+          jsonProxy(res, 200, { ok: true });
+        } catch (e) {
+          jsonProxy(res, 502, { ok: false, error: e.message });
+        }
+        return;
+      }
+
+      if (req.method === 'POST' && url.pathname === '/') {
+        try {
+          const body = await readBody(req);
+          if (!body.length) { jsonProxy(res, 400, { ok: false, error: 'Cuerpo vacío' }); return; }
+          await sendToPrinter(ip, port, body);
+          console.log(`[ESC/POS] ✔ ${body.length} bytes → ${ip}:${port}`);
+          jsonProxy(res, 200, { ok: true, bytes: body.length });
+        } catch (e) {
+          console.error(`[ESC/POS] ✖ ${e.message}`);
+          jsonProxy(res, 502, { ok: false, error: e.message });
+        }
+        return;
+      }
+
+      jsonProxy(res, 404, { ok: false, error: 'Ruta no encontrada' });
+    });
+
+    proxyServer.listen(PROXY_PORT, () => {
+      console.log(`🖨️  Proxy ESC/POS integrado en http://localhost:${PROXY_PORT}`);
+      console.log(`   Panel → http://localhost:${PROXY_PORT}/`);
+    });
+    proxyServer.on('error', (err) => {
+      if (err.code === 'EADDRINUSE') {
+        console.warn(`⚠️  Puerto ${PROXY_PORT} ocupado — proxy no iniciado (usa el externo).`);
+      } else {
+        console.error('💥 Proxy error:', err.message);
+      }
     });
     server.on('error', (err) => {
       if (err.code === 'EADDRINUSE') {
